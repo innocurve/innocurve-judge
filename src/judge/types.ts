@@ -125,6 +125,9 @@ export interface RepoSnapshot {
   repo_url: string;
   plan: string;
   plan_path: string | null;
+  prd_path: string | null;
+  /** 레포에서 찾지 못한 기획 문서 대표 파일명 (예: ["PRD.md"]) */
+  missing_docs: string[];
   code_bundle: string;
   files_included: string[];
 }

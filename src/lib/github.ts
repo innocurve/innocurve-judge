@@ -50,9 +50,30 @@ function isSourceCandidate(lowerPath: string): boolean {
 // 기획서 탐색에서 제외할 README 계열 파일명 (README는 더 이상 심사 대상이 아님)
 const README_NAMES = new Set(["readme.md", "readme.markdown", "readme.txt", "readme"]);
 
-// 기획서 파일 자동 탐색 — 관례적 파일명 우선순위
+// 기획 문서 자동 탐색 — PRD.md·PLAN.md 두 종류를 각각 찾는다. 둘 중 하나만 있어도 심사한다.
 const PLAN_FILENAMES = ["plan.md", "기획서.md", "planning.md", "plan.txt", "기획서.txt"];
-const MAX_PLAN_CHARS = 80_000;
+const PRD_FILENAMES = ["prd.md", "prd.txt", "요구사항정의서.md", "요구사항정의서.txt"];
+const MAX_DOC_CHARS = 60_000;
+
+export type PlanDocKind = "prd" | "plan";
+
+/** 결과서·누락 안내에 쓰는 대표 파일명 */
+export const PLAN_DOC_LABELS: Record<PlanDocKind, string> = {
+  prd: "PRD.md",
+  plan: "PLAN.md",
+};
+
+const DOC_RULES: Record<PlanDocKind, { names: string[]; matches: (name: string) => boolean }> = {
+  prd: {
+    names: PRD_FILENAMES,
+    // PRD_v2.md, product-prd.md처럼 "prd"가 단어로 들어간 문서도 인정
+    matches: (name) => /(^|[^a-z])prd([^a-z]|$)/.test(name) && /\.(md|txt)$/.test(name),
+  },
+  plan: {
+    names: PLAN_FILENAMES,
+    matches: (name) => /기획서/.test(name) && /\.(md|txt)$/.test(name),
+  },
+};
 
 interface TreeEntry {
   type?: string;
@@ -203,8 +224,9 @@ async function fetchRawFile(
   return resp.text();
 }
 
-/** 레포 내 기획서 파일 경로 탐색 — 우선순위 파일명 > 얕은 경로 > 사전순. 없으면 null */
-export function findPlanPath(entries: TreeEntry[]): string | null {
+/** 레포 내 기획 문서 경로 탐색 — 우선순위 파일명 > 얕은 경로 > 사전순. 없으면 null */
+export function findDocPath(entries: TreeEntry[], kind: PlanDocKind): string | null {
+  const { names, matches } = DOC_RULES[kind];
   const candidates: string[] = [];
   for (const item of entries) {
     if (item.type !== "blob") continue;
@@ -212,17 +234,15 @@ export function findPlanPath(entries: TreeEntry[]): string | null {
     if (shouldSkipPath(p)) continue;
     const name = p.split("/").pop()?.toLowerCase() ?? "";
     if (README_NAMES.has(name)) continue;
-    const isNamed = PLAN_FILENAMES.includes(name);
-    const mentionsPlan = /기획서/.test(name) && /\.(md|txt)$/.test(name);
-    if (isNamed || mentionsPlan) candidates.push(p);
+    if (names.includes(name) || matches(name)) candidates.push(p);
   }
   candidates.sort((a, b) => {
     const nameA = a.split("/").pop()?.toLowerCase() ?? "";
     const nameB = b.split("/").pop()?.toLowerCase() ?? "";
-    const prioA = PLAN_FILENAMES.indexOf(nameA);
-    const prioB = PLAN_FILENAMES.indexOf(nameB);
-    const rankA = prioA === -1 ? PLAN_FILENAMES.length : prioA;
-    const rankB = prioB === -1 ? PLAN_FILENAMES.length : prioB;
+    const prioA = names.indexOf(nameA);
+    const prioB = names.indexOf(nameB);
+    const rankA = prioA === -1 ? names.length : prioA;
+    const rankB = prioB === -1 ? names.length : prioB;
     if (rankA !== rankB) return rankA - rankB;
     const depthA = (a.match(/\//g) ?? []).length;
     const depthB = (b.match(/\//g) ?? []).length;
@@ -230,6 +250,25 @@ export function findPlanPath(entries: TreeEntry[]): string | null {
     return a.toLowerCase() < b.toLowerCase() ? -1 : 1;
   });
   return candidates[0] ?? null;
+}
+
+export function findPlanPath(entries: TreeEntry[]): string | null {
+  return findDocPath(entries, "plan");
+}
+
+/** 수집한 PRD·PLAN을 채점 프롬프트에 넣을 한 덩어리로 합친다. 한쪽만 있으면 그 문서만 */
+export function combinePlanDocs(docs: Array<{ kind: PlanDocKind; path: string; text: string }>): string {
+  // 한 파일이 PRD·PLAN 이름 규칙에 모두 걸리면(예: 기획서_prd.md) 한 번만 넣는다
+  const seen = new Set<string>();
+  const present = docs.filter((doc) => {
+    if (!doc.text.trim() || seen.has(doc.path)) return false;
+    seen.add(doc.path);
+    return true;
+  });
+  if (present.length === 1) return present[0].text.trim();
+  return present
+    .map((doc) => `### ${PLAN_DOC_LABELS[doc.kind]} (${doc.path})\n${doc.text.trim()}`)
+    .join("\n\n");
 }
 
 function shouldSkipPath(filePath: string): boolean {
@@ -312,12 +351,22 @@ export async function fetchGithubRepo(url: string): Promise<RepoSnapshot> {
   )) as { tree?: TreeEntry[] };
   const entries = tree.tree ?? [];
 
-  // 기획서 자동 수집 — 없으면 분야1·2 부적격 처리 (evaluator에서 판정)
-  const planPath = findPlanPath(entries);
-  let plan = "";
-  if (planPath) {
-    plan = (await fetchRawFile(owner, repo, branch, planPath)).trim().slice(0, MAX_PLAN_CHARS);
-  }
+  // 기획 문서(PRD·PLAN) 자동 수집 — 둘 다 없으면 분야1·2 부적격 처리 (evaluator에서 판정)
+  const kinds: PlanDocKind[] = ["prd", "plan"];
+  const docs = await Promise.all(
+    kinds.map(async (kind) => {
+      const path = findDocPath(entries, kind);
+      const text = path
+        ? (await fetchRawFile(owner, repo, branch, path)).trim().slice(0, MAX_DOC_CHARS)
+        : "";
+      return { kind, path, text };
+    }),
+  );
+  const found = docs.filter((doc): doc is typeof doc & { path: string } =>
+    Boolean(doc.path && doc.text),
+  );
+  const plan = combinePlanDocs(found);
+  const missingDocs = docs.filter((doc) => !doc.path || !doc.text).map((doc) => PLAN_DOC_LABELS[doc.kind]);
 
   const selected = selectRepoFiles(entries);
   const { bundle, included } = await buildCodeBundle(owner, repo, branch, selected);
@@ -339,7 +388,9 @@ export async function fetchGithubRepo(url: string): Promise<RepoSnapshot> {
     branch,
     repo_url: `https://github.com/${owner}/${repo}`,
     plan,
-    plan_path: planPath,
+    plan_path: docs.find((doc) => doc.kind === "plan")?.path ?? null,
+    prd_path: docs.find((doc) => doc.kind === "prd")?.path ?? null,
+    missing_docs: missingDocs,
     code_bundle: bundle,
     files_included: included,
   };

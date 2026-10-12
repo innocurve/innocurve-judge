@@ -212,7 +212,7 @@ export function assessDomains(planText: string, codeText: string): DomainAssessm
   // 기획서 미발견(레포 자동 수집 기준) — 두 분야 모두 부적격 처리
   const planMissing = !planText.trim();
   const planMissingReason =
-    "레포에서 기획서 파일(PLAN.md·기획서.md 등)을 찾을 수 없습니다.";
+    "레포에서 기획 문서(PRD.md·PLAN.md)를 찾을 수 없습니다.";
 
   const allGarbage =
     !planMissing && isTrivialGarbage(planText) && isTrivialGarbage(codeText);

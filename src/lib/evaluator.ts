@@ -86,10 +86,10 @@ function buildZeroOutput(
     scores: { ...ZERO_SCORES },
     criteria: zeroCriteria(trackKeys(track)),
     strengths: ["제출된 자료만으로는 심사할 수 있는 내용이 확인되지 않았습니다."],
-    risks: issues.length > 0 ? issues : ["레포에 기획서 파일과 실행 코드를 올린 뒤 다시 제출해 주세요."],
+    risks: issues.length > 0 ? issues : ["레포에 기획 문서(PRD.md 또는 PLAN.md)와 실행 코드를 올린 뒤 다시 제출해 주세요."],
     final_verdict:
       "이번 제출은 심사 기준을 충족하지 않아 모든 항목 0점으로 처리했습니다. " +
-      "레포에 기획서 파일(PLAN.md·기획서.md)과 실행 코드를 함께 올려 주시면 정확한 평가가 가능합니다. " +
+      "레포에 기획 문서(PRD.md 또는 PLAN.md)와 실행 코드를 함께 올려 주시면 정확한 평가가 가능합니다. " +
       "다음 제출을 기대하겠습니다.",
     assessment,
     review_fallback: false,

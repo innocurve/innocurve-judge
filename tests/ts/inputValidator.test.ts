@@ -38,7 +38,7 @@ describe("assessDomains", () => {
     expect(assessment.all_fatal).toBe(false);
     expect(assessment.domain1_ok).toBe(false);
     expect(assessment.domain2_ok).toBe(false);
-    expect(assessment.domain1_reasons[0]).toContain("기획서 파일");
+    expect(assessment.domain1_reasons[0]).toContain("기획 문서");
   });
 
   it("코드가 없으면 fatal", () => {

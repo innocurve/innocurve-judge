@@ -1,7 +1,9 @@
 // 기존 tests/test_repo_fetcher.py 케이스 동등 이식
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  combinePlanDocs,
   filePriority,
+  findDocPath,
   findPlanPath,
   parseGithubUrl,
   rateLimitMessage,
@@ -118,6 +120,49 @@ describe("findPlanPath — 기획서 자동 탐색", () => {
   it("없으면 null, node_modules 제외", () => {
     expect(findPlanPath([{ type: "blob", path: "app.py" }])).toBeNull();
     expect(findPlanPath([{ type: "blob", path: "node_modules/plan.md" }])).toBeNull();
+  });
+});
+
+describe("findDocPath — PRD 자동 탐색", () => {
+  it("PRD.md 탐색, PLAN.md와 구분", () => {
+    const tree = [
+      { type: "blob", path: "PLAN.md" },
+      { type: "blob", path: "docs/PRD.md" },
+    ];
+    expect(findDocPath(tree, "prd")).toBe("docs/PRD.md");
+    expect(findDocPath(tree, "plan")).toBe("PLAN.md");
+  });
+
+  it("prd가 단어로 들어간 파일명 인정, 다른 단어 속 prd는 제외", () => {
+    expect(findDocPath([{ type: "blob", path: "PRD_v2.md" }], "prd")).toBe("PRD_v2.md");
+    expect(findDocPath([{ type: "blob", path: "notes/xprdy.md" }], "prd")).toBeNull();
+  });
+
+  it("없으면 null", () => {
+    expect(findDocPath([{ type: "blob", path: "PLAN.md" }], "prd")).toBeNull();
+  });
+});
+
+describe("combinePlanDocs", () => {
+  it("한 문서만 있으면 원문 그대로", () => {
+    expect(combinePlanDocs([{ kind: "plan", path: "PLAN.md", text: "본문" }])).toBe("본문");
+  });
+
+  it("두 문서는 파일명 머리말을 붙여 합친다", () => {
+    const merged = combinePlanDocs([
+      { kind: "prd", path: "PRD.md", text: "요구" },
+      { kind: "plan", path: "PLAN.md", text: "계획" },
+    ]);
+    expect(merged).toContain("### PRD.md (PRD.md)\n요구");
+    expect(merged).toContain("### PLAN.md (PLAN.md)\n계획");
+  });
+
+  it("같은 파일이 두 규칙에 걸리면 한 번만", () => {
+    const merged = combinePlanDocs([
+      { kind: "prd", path: "기획서_prd.md", text: "본문" },
+      { kind: "plan", path: "기획서_prd.md", text: "본문" },
+    ]);
+    expect(merged).toBe("본문");
   });
 });
 
