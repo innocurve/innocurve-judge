@@ -30,7 +30,18 @@ export interface ApiEvaluation {
   domain_skipped: { domain1: boolean; domain2: boolean };
   ensemble: { n: number; model: string; fallback_used: boolean; unstable_count: number };
   criteria: ApiCriterion[];
-  repo?: { url: string; branch: string; files: string[]; plan_path: string | null };
+  repo?: {
+    url: string;
+    branch: string;
+    files: string[];
+    plan_path: string | null;
+    /** v2.2 이전 저장 기록에는 없을 수 있음 */
+    prd_path?: string | null;
+    missing_docs?: string[];
+  };
+  /** 최근 심사 기록 저장 시 부여되는 식별자·시각 (저장소 미연결 시 없음) */
+  history_id?: string;
+  evaluated_at?: string;
 }
 
 export type StreamStage =

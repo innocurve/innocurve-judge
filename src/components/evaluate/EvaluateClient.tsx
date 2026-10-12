@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ProgressStepper } from "./ProgressStepper";
 import { isValidRepoUrl, RepoUrlInput } from "./RepoUrlInput";
@@ -160,9 +161,10 @@ export function EvaluateClient() {
           </div>
         </form>
         <p className="mt-3 text-xs text-ink-soft">
-          기획서는 레포 안의 <span className="font-mono">PLAN.md</span> 또는{" "}
-          <span className="font-mono">기획서.md</span> 파일에서 자동으로 읽습니다. 두 심사
-          분야 모두 기획서를 근거로 하므로, 파일이 없으면 전 항목 0점 처리됩니다.
+          기획 문서는 레포 안의 <span className="font-mono">PRD.md</span>와{" "}
+          <span className="font-mono">PLAN.md</span>(또는 <span className="font-mono">기획서.md</span>)
+          에서 자동으로 읽습니다. 둘 중 하나만 있어도 심사하며, 빠진 파일은 결과서에
+          알려 드립니다. 둘 다 없으면 전 항목 0점 처리됩니다.
         </p>
       </section>
 
@@ -201,6 +203,17 @@ export function EvaluateClient() {
       {phase.name === "done" && (
         <>
           <ProgressStepper current={null} finished />
+          {phase.result.history_id && (
+            <p data-print-hide className="text-xs text-ink-soft">
+              이 결과서는 심사 기록에 저장되었습니다.{" "}
+              <Link
+                href={`/history/${phase.result.history_id}`}
+                className="font-bold underline underline-offset-2 hover:text-seal"
+              >
+                저장된 결과서 주소
+              </Link>
+            </p>
+          )}
           <ResultSheet result={phase.result} />
         </>
       )}

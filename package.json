@@ -1,6 +1,6 @@
 {
   "name": "judge-chatbot",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
   "description": "기관·기업 바이브 코딩 검증용 AI 심사위원",
   "scripts": {
@@ -11,10 +11,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4.9.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@upstash/redis": "^1.39.0",
     "next": "^16.2.11",
     "openai": "^6.48.0",
     "postcss": "^8.5.22",

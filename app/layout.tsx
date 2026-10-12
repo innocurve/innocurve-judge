@@ -34,6 +34,7 @@ export const metadata: Metadata = {
 const NAV_ITEMS = [
   { href: "/", label: "홈" },
   { href: "/evaluate", label: "심사 접수" },
+  { href: "/history", label: "심사 기록" },
   { href: "/criteria", label: "채점 기준" },
 ];
 
@@ -50,8 +51,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           본문으로 건너뛰기
         </a>
         <header data-site-header className="border-b-2 border-ink bg-sheet">
-          <div className="mx-auto flex w-full max-w-4xl items-baseline justify-between gap-4 px-5 py-4">
-            <Link href="/" className="flex items-baseline gap-2">
+          {/* 좁은 화면에서는 메뉴가 로고 아래 줄로 내려간다 — 메뉴 이름이 두 줄로 쪼개지지 않게 */}
+          <div className="mx-auto flex w-full max-w-4xl flex-wrap items-baseline justify-between gap-x-4 gap-y-2 px-5 py-4">
+            <Link href="/" className="flex items-baseline gap-2 whitespace-nowrap">
               <span className="font-display text-xl font-black tracking-tight">
                 AI 심사위원
               </span>
@@ -59,7 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 기관·기업 바이브 코딩 검증
               </span>
             </Link>
-            <nav aria-label="주요 메뉴" className="flex gap-5 text-sm font-medium">
+            <nav aria-label="주요 메뉴" className="flex gap-4 whitespace-nowrap text-sm font-medium sm:gap-5">
               {NAV_ITEMS.map((item) => (
                 <Link
                   key={item.href}
@@ -80,7 +82,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <footer data-site-footer className="border-t border-line bg-sheet">
           <div className="mx-auto flex w-full max-w-4xl flex-col gap-1 px-5 py-4 text-xs text-ink-soft sm:flex-row sm:items-center sm:justify-between">
             <span>AI 심사위원 · 점수는 참고용이며 최종 심사를 대신하지 않습니다.</span>
-            <span className="shrink-0 font-mono">v2.1</span>
+            <span className="shrink-0 font-mono">v2.2</span>
           </div>
         </footer>
       </body>

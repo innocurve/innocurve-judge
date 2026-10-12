@@ -4,6 +4,7 @@ import { EvaluationError, RepoFetchError } from "@/judge/types";
 import { getOpenAIKey } from "@/lib/config";
 import { runEvaluation, type EvaluationStage } from "@/lib/evaluator";
 import { fetchGithubRepo } from "@/lib/github";
+import { saveEvaluation } from "@/lib/history";
 import { evaluationToResponse } from "@/lib/serialize";
 
 export const runtime = "nodejs";
@@ -93,7 +94,19 @@ export async function POST(request: Request) {
           branch: snapshot.branch,
           files: snapshot.files_included,
           plan_path: snapshot.plan_path,
+          prd_path: snapshot.prd_path,
+          missing_docs: snapshot.missing_docs,
         };
+        // 기록 저장 실패는 심사 결과 전달을 막지 않는다
+        try {
+          const saved = await saveEvaluation(response);
+          if (saved) {
+            response.history_id = saved.id;
+            response.evaluated_at = saved.evaluated_at;
+          }
+        } catch (error) {
+          console.error("[history] 심사 기록 저장 실패", error);
+        }
         send({ type: "result", data: response });
       } catch (error) {
         if (error instanceof RepoFetchError) {
