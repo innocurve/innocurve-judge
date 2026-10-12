@@ -33,7 +33,7 @@ export default function HomePage() {
           심사는 <strong className="font-bold text-ink">기관용</strong>과{" "}
           <strong className="font-bold text-ink">기업용</strong> 두 트랙으로 나뉘며,
           접수 시 선택합니다. 공개 GitHub 레포 주소만 제출하면 AI 심사위원이 레포에서
-          기획서(PLAN.md)와 코드를 수집해 2개 분야 6개 항목을 채점하고, 심사 결과서를
+          기획 문서(PRD.md·PLAN.md)와 코드를 수집해 2개 분야 6개 항목을 채점하고, 심사 결과서를
           발급합니다. 같은 제출물의 점수가 크게 흔들리지 않도록 항목마다 여러 번
           채점해 중앙값을 기록합니다.
         </p>

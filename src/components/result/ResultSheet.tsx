@@ -3,11 +3,36 @@
 import { AudioBriefing } from "./AudioBriefing";
 import { CriteriaTable } from "./CriteriaTable";
 import { DomainCards } from "./DomainCard";
+import { MissingDocsNotice } from "./MissingDocsNotice";
+import { PdfDownloadButton } from "./PdfDownloadButton";
 import { RiskList } from "./RiskList";
 import { ScoreHero } from "./ScoreHero";
 import { StrengthList } from "./StrengthList";
 import { VerdictCard } from "./VerdictCard";
 import type { ApiEvaluation } from "./types";
+
+const DATE_FORMAT = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+function DocPath({ label, path }: { label: string; path: string | null | undefined }) {
+  return (
+    <p>
+      {label}:{" "}
+      {path ? (
+        <span className="font-mono break-all">{path}</span>
+      ) : (
+        <span className="text-seal">레포에서 발견되지 않음</span>
+      )}
+    </p>
+  );
+}
 
 /** 심사 결과서 — 공문서 프레임 */
 export function ResultSheet({ result }: { result: ApiEvaluation }) {
@@ -32,14 +57,17 @@ export function ResultSheet({ result }: { result: ApiEvaluation }) {
               </span>
             </p>
           )}
-          {result.repo && (
+          {/* prd_path가 없는 v2.2 이전 기록은 PRD 줄을 생략한다 */}
+          {result.repo && result.repo.prd_path !== undefined && (
+            <DocPath label="PRD" path={result.repo.prd_path} />
+          )}
+          {result.repo && <DocPath label="기획서(PLAN)" path={result.repo.plan_path} />}
+          {result.evaluated_at && (
             <p>
-              기획서:{" "}
-              {result.repo.plan_path ? (
-                <span className="font-mono break-all">{result.repo.plan_path}</span>
-              ) : (
-                <span className="text-seal">레포에서 발견되지 않음</span>
-              )}
+              심사 일시:{" "}
+              <time dateTime={result.evaluated_at}>
+                {DATE_FORMAT.format(new Date(result.evaluated_at))}
+              </time>
             </p>
           )}
           <p className="font-mono">
@@ -50,6 +78,8 @@ export function ResultSheet({ result }: { result: ApiEvaluation }) {
       </header>
 
       <div className="flex flex-col gap-8 px-6 py-8">
+        <PdfDownloadButton result={result} />
+        <MissingDocsNotice result={result} />
         <ScoreHero result={result} />
         <DomainCards result={result} />
         <CriteriaTable result={result} />
