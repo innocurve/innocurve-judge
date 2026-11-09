@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { assessDomains, isTrivialGarbage } from "@/judge/inputValidator";
+import { assessDomains, isTrivialGarbage, topicCounts } from "@/judge/inputValidator";
 
 const EXAMPLE = path.join(process.cwd(), "examples", "01_csv_dashboard");
 
@@ -117,6 +117,30 @@ describe("assessDomains", () => {
     const assessment = assessDomains(plan, code);
     expect(assessment.domain2_ok).toBe(false);
     expect(assessment.domain2_reasons[0]).toContain("주제가 일치하지 않습니다");
+  });
+
+  it("식별자 안에 걸친 영문 주제어(toDogColumns → todo)는 세지 않아 주제 불일치로 0점 처리하지 않음", () => {
+    // 실제 사례: 반려견 매칭 앱. 기획서는 "서류 업로드"를 3번, 코드는 toDogColumns·toDogId 를 7번 —
+    // 소문자 부분 문자열로 세면 "할 일 관리"가 코드 주제로 떠서 의도 구현도가 0점이 됐다
+    const plan =
+      "# 강아지 산책 친구 찾기 기획서\n\n## 핵심 기능\n1. 강아지 등록 화면\n2. 건강검진 서류 업로드\n" +
+      "3. 서류 업로드 후 AI가 품종을 읽음\n\n## 예외\n- 외부 AI 전송 동의 없음: 서류 업로드 불가\n" +
+      "## 성공 기준\n사용자가 근처 강아지에게 산책을 신청할 수 있다.\n";
+    const code =
+      "export function toDogColumns(input) {\n  return { name: input.name };\n}\n" +
+      "const schema = z.object({ fromDogId: z.uuid(), toDogId: z.uuid() });\n" +
+      "await admin.from('dogs').insert(toDogColumns(data));\n" +
+      "await admin.from('dogs').update(toDogColumns(data));\n" +
+      "rpc({ p_to_dog: parsed.data.toDogId });\n";
+    expect(topicCounts(code).get("todo")).toBeUndefined();
+    expect(assessDomains(plan, code).domain2_ok).toBe(true);
+  });
+
+  it("영문 주제어 경계: camelCase 새 단어·복수형·주석은 세고, 단어 중간은 세지 않음", () => {
+    const counts = topicCounts("// TODO: fix\nconst todos = addTodo(todoList);\nrenews(); newsFeed(); uploadedFiles; reupload();");
+    expect(counts.get("todo")).toBe(4); // TODO, todos, addTodo(Todo), todoList
+    expect(counts.get("news")).toBe(1); // newsFeed 만 — renews 는 단어 중간
+    expect(counts.get("upload")).toBe(1); // uploadedFiles 만 — reupload 는 단어 중간
   });
 
   it("공공 API 숫자 ID가 있어도 코드 정상 인식", () => {
