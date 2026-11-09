@@ -1,13 +1,15 @@
 // Design Ref: §2.2 [stage: fetching] — GitHub 공개 레포 수집. judge/repo_fetcher.py 동등 이식
-// (수집 규칙: 최대 25파일/120K자, 5분 캐시, GITHUB_TOKEN, rate-limit 안내)
+// (수집 규칙: 최대 40파일·파일당 20K자·총 120K자, 로직 우선, 5분 캐시, GITHUB_TOKEN, rate-limit 안내)
 import { RepoFetchError, type RepoSnapshot } from "@/judge/types";
 
 const API_BASE = "https://api.github.com";
 const RAW_BASE = "https://raw.githubusercontent.com";
 
 const MAX_CODE_CHARS = 120_000;
-const MAX_FILES = 25;
-const MAX_FILE_CHARS = 40_000;
+// 총량(MAX_CODE_CHARS)은 그대로 두고 파일 수를 늘리되 한 파일 상한을 낮춰,
+// 큰 화면 컴포넌트 하나가 용량을 독차지하지 않게 한다
+const MAX_FILES = 40;
+const MAX_FILE_CHARS = 20_000;
 const REQUEST_TIMEOUT_MS = 30_000;
 const API_CACHE_TTL_MS = 300_000;
 
@@ -278,12 +280,44 @@ function shouldSkipPath(filePath: string): boolean {
     .some((part) => SKIP_DIR_PARTS.has(part));
 }
 
-export function filePriority(filePath: string): [number, number, string] {
+// 수집 우선순위 계층 — 용량 한도 안에 기능·보안 판단 근거가 되는 코드가 먼저 들어가게 한다.
+// 예전에는 깊이·사전순만 봐서 Next.js 앱의 CSS·설정·UI 컴포넌트가 25개를 채우고
+// lib/·app/api/ 같은 핵심 로직이 통째로 빠졌다.
+const FILE_TIER = { entry: 0, logic: 1, ui: 2, support: 3, style: 4, config: 5 } as const;
+
+const LOGIC_DIRS = new Set([
+  "lib", "api", "server", "services", "service", "utils", "util", "hooks", "models",
+  "db", "store", "backend", "core", "domain", "routes", "controllers", "middleware", "auth",
+]);
+const SUPPORT_DIRS = new Set(["scripts", "script", "test", "tests", "__tests__", "e2e", "migrations", "seed", "seeds"]);
+const UI_EXTENSIONS = new Set([".tsx", ".jsx", ".vue", ".svelte", ".html"]);
+const STYLE_EXTENSIONS = new Set([".css"]);
+const LOGIC_FILENAMES = /^(route|middleware|proxy|actions?)\.(ts|js|mjs)$/;
+
+function fileTier(filePath: string): number {
+  const lower = filePath.toLowerCase();
+  const parts = lower.split("/");
+  const name = parts.pop() ?? lower;
+  if ((PRIORITY_FILENAMES as readonly string[]).includes(name)) return FILE_TIER.entry;
+  if (/\.config\.(js|mjs|cjs|ts)$/.test(name)) return FILE_TIER.config;
+  const ext = name.slice(name.lastIndexOf("."));
+  if (STYLE_EXTENSIONS.has(ext)) return FILE_TIER.style;
+  if (parts.some((part) => SUPPORT_DIRS.has(part)) || /\.(test|spec)\./.test(name)) {
+    return FILE_TIER.support;
+  }
+  if (parts.some((part) => LOGIC_DIRS.has(part)) || LOGIC_FILENAMES.test(name)) {
+    return FILE_TIER.logic;
+  }
+  return UI_EXTENSIONS.has(ext) ? FILE_TIER.ui : FILE_TIER.logic;
+}
+
+/** 정렬 키 — [계층, 진입점 우선순위, 깊이, 경로] */
+export function filePriority(filePath: string): [number, number, number, string] {
   const name = filePath.split("/").pop() ?? filePath;
   const depth = (filePath.match(/\//g) ?? []).length;
   const index = (PRIORITY_FILENAMES as readonly string[]).indexOf(name);
   const prio = index === -1 ? PRIORITY_FILENAMES.length : index;
-  return [prio, depth, filePath.toLowerCase()];
+  return [fileTier(filePath), prio, depth, filePath.toLowerCase()];
 }
 
 export function selectRepoFiles(entries: TreeEntry[]): string[] {
@@ -295,11 +329,12 @@ export function selectRepoFiles(entries: TreeEntry[]): string[] {
     if (isSourceCandidate(p.toLowerCase())) candidates.push(p);
   }
   candidates.sort((a, b) => {
-    const [pa, da, sa] = filePriority(a);
-    const [pb, db, sb] = filePriority(b);
-    if (pa !== pb) return pa - pb;
-    if (da !== db) return da - db;
-    return sa < sb ? -1 : sa > sb ? 1 : 0;
+    const ka = filePriority(a);
+    const kb = filePriority(b);
+    for (let i = 0; i < 3; i += 1) {
+      if (ka[i] !== kb[i]) return (ka[i] as number) - (kb[i] as number);
+    }
+    return ka[3] < kb[3] ? -1 : ka[3] > kb[3] ? 1 : 0;
   });
   return candidates.slice(0, MAX_FILES);
 }

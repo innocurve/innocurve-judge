@@ -88,9 +88,26 @@ describe("파일 선택", () => {
   });
 
   it("루트 파일이 하위 경로보다 우선", () => {
-    const [pa, da] = filePriority("app.py");
-    const [pb, db] = filePriority("src/app.py");
-    expect(pa <= pb && da < db).toBe(true);
+    const [ta, pa, da] = filePriority("app.py");
+    const [tb, pb, db] = filePriority("src/app.py");
+    expect(ta === tb && pa === pb && da < db).toBe(true);
+  });
+
+  it("핵심 로직·API가 CSS·설정·UI 컴포넌트보다 먼저 (Next.js 앱 회귀)", () => {
+    const tree = [
+      "eslint.config.mjs", "next.config.ts", "app/globals.css", "app/design-system.css",
+      "app/page.tsx", "scripts/seed.mjs",
+      ...Array.from({ length: 30 }, (_, i) => `components/Widget${i}.tsx`),
+      "lib/session.ts", "lib/password.ts", "app/api/auth/login/route.ts", "lib/db/cases.ts",
+    ].map((path) => ({ type: "blob", path }));
+    const selected = selectRepoFiles(tree);
+    for (const core of ["lib/session.ts", "lib/password.ts", "app/api/auth/login/route.ts", "lib/db/cases.ts"]) {
+      expect(selected).toContain(core);
+    }
+    expect(selected.indexOf("lib/session.ts")).toBeLessThan(selected.indexOf("app/page.tsx"));
+    expect(selected.slice(-4)).toEqual([
+      "app/design-system.css", "app/globals.css", "eslint.config.mjs", "next.config.ts",
+    ]);
   });
 });
 

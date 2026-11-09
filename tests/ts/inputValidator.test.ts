@@ -78,6 +78,34 @@ describe("assessDomains", () => {
     expect(assessment.domain2_ok).toBe(true);
   });
 
+  it("한두 번 스친 주제어로는 주제 불일치 판정을 내지 않는다 (gongmae-checklist 회귀)", () => {
+    // 기획서는 범위 밖에서만 "업로드"를 언급하고, 코드는 CSS 주석의 "대시보드"와
+    // data-state="todo" 속성뿐 — 실제로는 같은 공매 점검 앱인데 의도 구현도가 0점이 됐었다
+    const plan =
+      "# 공매 물건 점검 체크리스트 기획서\n\n## 핵심 기능\n1. 물건 등록과 점검 항목 체크\n" +
+      "2. 마감일 계산과 담당자별 현황\n3. 온비드 조회로 낙찰일 채우기\n\n## 성공 기준\n" +
+      "담당자가 화면에서 점검 진행률을 확인할 수 있다.\n\n## 범위 밖\n- 서류 원본 파일 업로드·보관\n" +
+      "- 서류 원본 업로드, 법률 자문\n";
+    const code =
+      "/* 헤더 아래 선: 대시보드의 색 정체성 */\n.header { color: red; }\n" +
+      "/* 대시보드 팔레트 */\n" +
+      "export function CaseDetail() {\n  return <li data-state=\"todo\">점검</li>;\n}\n";
+    const assessment = assessDomains(plan, code);
+    expect(assessment.domain2_ok).toBe(true);
+  });
+
+  it("양쪽 모두 뚜렷한 다른 주제면 여전히 주제 불일치로 판정", () => {
+    const plan =
+      "# 뉴스 요약 앱 기획서\n\n뉴스 기사를 모아 요약합니다. 뉴스 출처별로 정리하고 " +
+      "뉴스 키워드를 추출하는 기능을 구현합니다. 성공 기준: 사용자가 뉴스 요약을 화면에서 본다.\n";
+    const code =
+      "import streamlit as st\n\nst.title('영수증 정산')\nfile = st.file_uploader('영수증')\n" +
+      "st.write('정산 결과')\nst.dataframe(rows)\n";
+    const assessment = assessDomains(plan, code);
+    expect(assessment.domain2_ok).toBe(false);
+    expect(assessment.domain2_reasons[0]).toContain("주제가 일치하지 않습니다");
+  });
+
   it("공공 API 숫자 ID가 있어도 코드 정상 인식", () => {
     const [plan] = loadExample();
     const code =

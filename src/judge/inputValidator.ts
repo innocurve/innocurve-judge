@@ -116,21 +116,37 @@ export function isTrivialGarbage(text: string): boolean {
   return false;
 }
 
-function topicSignals(text: string): Set<string> {
-  const lowered = text.toLowerCase();
-  const signals = new Set<string>();
-  for (const [token, topic] of TOPIC_SIGNALS) {
-    if (lowered.includes(token)) signals.add(topic);
+// 주제 불일치는 양쪽 모두 주제어가 이 횟수 이상 나올 때만 판정한다. 한두 번 스친 단어
+// (기획서 "범위 밖"의 업로드, CSS 주석의 대시보드, data-state="todo")만으로 의도 구현도
+// 3항목을 모두 0점 처리하던 오판정을 막는다. 미묘한 불일치는 채점 모델이 기획 의도 일치에서 본다.
+const STRONG_TOPIC_MIN_HITS = 3;
+
+function countOccurrences(haystack: string, needle: string): number {
+  let count = 0;
+  for (let at = haystack.indexOf(needle); at !== -1; at = haystack.indexOf(needle, at + needle.length)) {
+    count += 1;
   }
-  if (lowered.includes("read_csv") || lowered.includes("pd.read_csv")) signals.add("csv");
+  return count;
+}
+
+/** 주제별 등장 횟수 */
+export function topicCounts(text: string): Map<string, number> {
+  const lowered = text.toLowerCase();
+  const counts = new Map<string, number>();
+  const add = (topic: string, hits: number) => {
+    if (hits > 0) counts.set(topic, (counts.get(topic) ?? 0) + hits);
+  };
+  for (const [token, topic] of TOPIC_SIGNALS) add(topic, countOccurrences(lowered, token));
   // "st."는 단어 경계로만 매칭 — request./list./test. 같은 흔한 식별자가
   // streamlit 신호로 오인되어 주제 불일치 오판정을 내던 문제를 막는다.
-  if (/\bst\./.test(lowered) || lowered.includes("streamlit")) {
-    signals.add("streamlit");
-    signals.add("dashboard");
-  }
-  if (lowered.includes("upload") || lowered.includes("file_uploader")) signals.add("upload");
-  return signals;
+  const streamlitHits = (lowered.match(/\bst\./g) ?? []).length + countOccurrences(lowered, "streamlit");
+  add("streamlit", streamlitHits);
+  add("dashboard", streamlitHits);
+  return counts;
+}
+
+function strongTopics(counts: Map<string, number>): Set<string> {
+  return new Set([...counts].filter(([, hits]) => hits >= STRONG_TOPIC_MIN_HITS).map(([topic]) => topic));
 }
 
 function checkPlanForDomain1(planText: string): string[] {
@@ -179,11 +195,16 @@ function checkCodeForDomain2(codeText: string): string[] {
 }
 
 function checkPlanCodeAlignment(planText: string, codeText: string): string[] {
-  const planTopics = topicSignals(planText);
-  const codeTopics = topicSignals(codeText);
+  const planCounts = topicCounts(planText);
+  const codeCounts = topicCounts(codeText);
+  const planTopics = strongTopics(planCounts);
+  const codeTopics = strongTopics(codeCounts);
   if (planTopics.size === 0 || codeTopics.size === 0) return [];
 
-  const overlap = [...planTopics].some((topic) => codeTopics.has(topic));
+  // 겹침은 상대편의 약한 신호까지 인정한다 — 한쪽에 한 번이라도 나오면 같은 주제로 본다
+  const overlap =
+    [...planTopics].some((topic) => codeCounts.has(topic)) ||
+    [...codeTopics].some((topic) => planCounts.has(topic));
   if (!overlap) {
     return [
       "기획서와 실행 코드의 주제가 일치하지 않습니다. " +
