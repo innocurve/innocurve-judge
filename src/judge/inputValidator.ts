@@ -129,6 +129,27 @@ function countOccurrences(haystack: string, needle: string): number {
   return count;
 }
 
+/**
+ * 영문 주제어 등장 횟수 — 원문 대소문자로 단어 경계를 본다.
+ * 소문자로 바꿔 부분 문자열로 세면 `toDogColumns`("to"+"Dog")가 todo로, `renews`가 news로 잡혀
+ * 기획서와 상관없는 주제가 코드에 강하게 뜨고 "주제 불일치"로 의도 구현도가 0점이 된다 (실제 발생).
+ * - 일치 구간 안에서 소문자→대문자로 바뀌면(`toDog`) 두 단어에 걸친 것이라 세지 않는다
+ * - 앞 글자가 소문자인데 일치가 소문자로 시작하면(`renews`) 단어 중간이라 세지 않는다.
+ *   `addTodo`처럼 대문자로 시작하면 camelCase 새 단어라 센다
+ * - 뒤는 보지 않는다 — `uploaded`·`todos`·`charts`는 같은 주제다
+ */
+function countAsciiToken(text: string, token: string): number {
+  const re = new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+  let count = 0;
+  for (const m of text.matchAll(re)) {
+    const at = m.index ?? 0;
+    if (/[a-z][A-Z]/.test(m[0])) continue;
+    if (at > 0 && /[a-z]/.test(text[at - 1]) && /[a-z]/.test(m[0][0])) continue;
+    count += 1;
+  }
+  return count;
+}
+
 /** 주제별 등장 횟수 */
 export function topicCounts(text: string): Map<string, number> {
   const lowered = text.toLowerCase();
@@ -136,7 +157,9 @@ export function topicCounts(text: string): Map<string, number> {
   const add = (topic: string, hits: number) => {
     if (hits > 0) counts.set(topic, (counts.get(topic) ?? 0) + hits);
   };
-  for (const [token, topic] of TOPIC_SIGNALS) add(topic, countOccurrences(lowered, token));
+  for (const [token, topic] of TOPIC_SIGNALS) {
+    add(topic, /^[a-z]+$/.test(token) ? countAsciiToken(text, token) : countOccurrences(lowered, token));
+  }
   // "st."는 단어 경계로만 매칭 — request./list./test. 같은 흔한 식별자가
   // streamlit 신호로 오인되어 주제 불일치 오판정을 내던 문제를 막는다.
   const streamlitHits = (lowered.match(/\bst\./g) ?? []).length + countOccurrences(lowered, "streamlit");
