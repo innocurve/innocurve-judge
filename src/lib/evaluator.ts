@@ -10,6 +10,7 @@ import {
   intentScoresSchema,
   publicSectorScoresSchema,
   reviewSummarySchema,
+  securityScoresSchema,
 } from "@/judge/schemas";
 import {
   candidatesForPrompt,
@@ -23,7 +24,9 @@ import { evaluationMode, totalScore, ZERO_SCORES } from "@/judge/score";
 import {
   EvaluationError,
   INTENT_DOMAIN_LABEL,
-  INTENT_IMPLEMENTATION_FIELDS,
+  INTENT_KEYS,
+  SECURITY_DOMAIN_LABEL,
+  SECURITY_KEYS,
   type CriterionKey,
   type CriterionResult,
   type DomainAssessment,
@@ -41,6 +44,7 @@ import { loadPrompt } from "./prompts";
 const MAX_FINAL_VERDICT_CHARS = 450;
 
 const STRENGTH_FILTER_DOMAIN2 = /구현|코드|요구사항|기능\s*\d|실행\s*코드|app\.py/i;
+const STRENGTH_FILTER_DOMAIN3 = /보안|개인정보|권한|인증|로그인|암호|비밀|검증/i;
 
 export type EvaluationStage = "validating" | "scoring" | "aggregating" | "reviewing";
 
@@ -67,12 +71,9 @@ function zeroCriteria(keys: readonly CriterionKey[]): CriterionResult[] {
   return keys.map((key) => ({ key, score: 0, samples: [], range: 0, unstable: false }));
 }
 
-/** 해당 트랙이 결과서에 노출하는 6개 키 (분야1 3 + 분야2 3) */
+/** 해당 트랙이 결과서에 노출하는 9개 키 (분야1 3 + 분야2 3 + 분야3 3) */
 function trackKeys(track: JudgeTrack): CriterionKey[] {
-  return [
-    ...domain1Keys(track),
-    ...(Object.keys(INTENT_IMPLEMENTATION_FIELDS) as CriterionKey[]),
-  ];
+  return [...domain1Keys(track), ...INTENT_KEYS, ...SECURITY_KEYS];
 }
 
 function buildZeroOutput(
@@ -103,9 +104,14 @@ function skipRiskItems(track: JudgeTrack, assessment: DomainAssessment): string[
   const groups: Array<[string, string[]]> = [
     [trackSpec(track).skipLabel, assessment.domain1_reasons],
     ["[의도구현 0점]", assessment.domain2_reasons],
+    ["[보안 0점]", assessment.domain3_reasons],
   ];
+  // 기획 문서 누락처럼 같은 사유가 여러 분야에 걸리면 한 번만 적는다
+  const seen = new Set<string>();
   for (const [label, reasons] of groups) {
     for (const reason of reasons.slice(0, 2)) {
+      if (seen.has(reason)) continue;
+      seen.add(reason);
       risks.push(`${label} ${reason}`);
     }
   }
@@ -132,6 +138,7 @@ function filterStrengths(
   const filters: RegExp[] = [];
   if (!assessment.domain1_ok) filters.push(trackSpec(track).strengthFilter);
   if (!assessment.domain2_ok) filters.push(STRENGTH_FILTER_DOMAIN2);
+  if (!assessment.domain3_ok) filters.push(STRENGTH_FILTER_DOMAIN3);
 
   if (filters.length === 0) return strengths;
 
@@ -155,6 +162,9 @@ function fallbackReview(
   }
   if (assessment.domain2_ok && scores.requirement_coverage > 0) {
     strengths.push("핵심 요구사항이 코드에 반영된 부분이 있습니다.");
+  }
+  if (assessment.domain3_ok && scores.data_protection >= 70) {
+    strengths.push("민감정보를 코드에 노출하지 않는 기본기가 갖춰져 있습니다.");
   }
   return {
     strengths: strengths.length > 0 ? strengths : ["세부 점수표를 참고해 주세요."],
@@ -199,7 +209,7 @@ export async function runEvaluation(
     unstable_count: 0,
   };
 
-  // 기획서 미발견은 오류가 아님 — assessDomains가 두 분야 부적격으로 판정
+  // 기획서 미발견은 오류가 아님 — assessDomains가 모든 분야 부적격으로 판정
   if (!codeText.trim()) {
     throw new EvaluationError(
       "레포에서 실행 코드(소스 파일)를 찾을 수 없습니다. " +
@@ -225,7 +235,7 @@ export async function runEvaluation(
     track === "corporate" ? "corporate_scores" : "public_sector_scores";
 
   onStage("scoring");
-  const [domain1Criteria, intentCriteria] = await Promise.all([
+  const [domain1Criteria, intentCriteria, securityCriteria] = await Promise.all([
     scoreDomainEnsemble(
       {
         keys: domain1Keys(track),
@@ -243,9 +253,7 @@ export async function runEvaluation(
     ),
     scoreDomainEnsemble(
       {
-        keys: Object.keys(INTENT_IMPLEMENTATION_FIELDS) as Array<
-          keyof typeof INTENT_IMPLEMENTATION_FIELDS
-        >,
+        keys: INTENT_KEYS,
         eligible: assessment.domain2_ok,
         call: () =>
           parseStructured(client, models, {
@@ -258,10 +266,25 @@ export async function runEvaluation(
       config.ensembleN,
       config.rangeThreshold,
     ),
+    scoreDomainEnsemble(
+      {
+        keys: SECURITY_KEYS,
+        eligible: assessment.domain3_ok,
+        call: () =>
+          parseStructured(client, models, {
+            system: loadPrompt("domain3_security.txt"),
+            user: `## 기획서\n${plan}\n\n## 실행 코드\n${code}`,
+            schema: securityScoresSchema,
+            schemaName: "security_scores",
+          }, fallbackState),
+      },
+      config.ensembleN,
+      config.rangeThreshold,
+    ),
   ]);
 
   onStage("aggregating");
-  const criteria = [...domain1Criteria, ...intentCriteria];
+  const criteria = [...domain1Criteria, ...intentCriteria, ...securityCriteria];
   const scores = { ...ZERO_SCORES };
   for (const item of criteria) scores[item.key] = item.score;
 
@@ -272,11 +295,14 @@ export async function runEvaluation(
     심사_트랙: spec.label,
     [spec.domain1Label]: Object.fromEntries(domain1Criteria.map((c) => [c.key, c.score])),
     [INTENT_DOMAIN_LABEL]: Object.fromEntries(intentCriteria.map((c) => [c.key, c.score])),
+    [SECURITY_DOMAIN_LABEL]: Object.fromEntries(securityCriteria.map((c) => [c.key, c.score])),
     domain1_skipped: !assessment.domain1_ok,
     domain2_skipped: !assessment.domain2_ok,
+    domain3_skipped: !assessment.domain3_ok,
     skip_reasons: {
       domain1: assessment.domain1_reasons,
       domain2: assessment.domain2_reasons,
+      domain3: assessment.domain3_reasons,
     },
   };
 
@@ -294,6 +320,7 @@ export async function runEvaluation(
         "## 중요\n" +
         `- domain1_skipped가 true이면 ${spec.domain1Label} 관련 칭찬을 strengths에 넣지 마세요.\n` +
         "- domain2_skipped가 true이면 의도 구현·코드 칭찬을 strengths에 넣지 마세요.\n" +
+        "- domain3_skipped가 true이면 보안 관련 칭찬을 strengths에 넣지 마세요.\n" +
         "- risk_reasons는 감점 후보에 있는 criterion_key만 사용하세요.\n" +
         "- final_verdict는 3문장 이내, 450자 이하로 작성하세요.",
       schema: reviewSummarySchema,

@@ -18,6 +18,8 @@ const narrationRequestSchema = z.object({
   domain1_score: score,
   domain2_label: z.string().min(1).max(40),
   domain2_score: score,
+  domain3_label: z.string().min(1).max(40).optional(),
+  domain3_score: score.optional(),
   final_verdict: z.string().min(1).max(1000),
 });
 

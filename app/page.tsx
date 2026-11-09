@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { allTrackSpecs } from "@/judge/tracks";
-import { INTENT_DOMAIN_LABEL, INTENT_IMPLEMENTATION_FIELDS } from "@/judge/types";
+import {
+  INTENT_DOMAIN_LABEL,
+  INTENT_IMPLEMENTATION_FIELDS,
+  SECURITY_DOMAIN_LABEL,
+  SECURITY_FIELDS,
+} from "@/judge/types";
 
 // 트랙·항목 정의는 judge/ 한 곳에서만 관리한다 (문구 중복 방지)
 const TRACKS = allTrackSpecs().map((spec) => ({
@@ -10,11 +15,20 @@ const TRACKS = allTrackSpecs().map((spec) => ({
   items: Object.values(spec.domain1Fields),
 }));
 
-const COMMON_DOMAIN = {
-  title: INTENT_DOMAIN_LABEL,
-  target: "기획서 ↔ 실행 코드",
-  items: Object.values(INTENT_IMPLEMENTATION_FIELDS),
-};
+const COMMON_DOMAINS = [
+  {
+    no: "제2분야",
+    title: INTENT_DOMAIN_LABEL,
+    target: "기획서 ↔ 실행 코드",
+    items: Object.values(INTENT_IMPLEMENTATION_FIELDS),
+  },
+  {
+    no: "제3분야",
+    title: SECURITY_DOMAIN_LABEL,
+    target: "기획서 + 실행 코드",
+    items: Object.values(SECURITY_FIELDS),
+  },
+];
 
 export default function HomePage() {
   return (
@@ -27,13 +41,13 @@ export default function HomePage() {
         <h1 className="mt-4 font-display text-4xl font-black leading-snug tracking-tight sm:text-5xl">
           기획서와 코드를 읽고,
           <br />
-          여섯 항목을 세 번씩 채점합니다.
+          아홉 항목을 세 번씩 채점합니다.
         </h1>
         <p className="mt-5 max-w-xl text-base leading-relaxed text-ink-soft">
           심사는 <strong className="font-bold text-ink">기관용</strong>과{" "}
           <strong className="font-bold text-ink">기업용</strong> 두 트랙으로 나뉘며,
           접수 시 선택합니다. 공개 GitHub 레포 주소만 제출하면 AI 심사위원이 레포에서
-          기획 문서(PRD.md·PLAN.md)와 코드를 수집해 2개 분야 6개 항목을 채점하고, 심사 결과서를
+          기획 문서(PRD.md·PLAN.md)와 코드를 수집해 3개 분야 9개 항목을 채점하고, 심사 결과서를
           발급합니다. 같은 제출물의 점수가 크게 흔들리지 않도록 항목마다 여러 번
           채점해 중앙값을 기록합니다.
         </p>
@@ -57,7 +71,7 @@ export default function HomePage() {
       <section>
         <h2 className="font-display text-2xl font-black">심사 분야</h2>
         <p className="mt-1 text-sm text-ink-soft">
-          제1분야는 트랙마다 기준이 다르고, 제2분야는 두 트랙 공통입니다.
+          제1분야는 트랙마다 기준이 다르고, 제2·3분야는 두 트랙 공통입니다.
         </p>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           {TRACKS.map((track) => (
@@ -81,23 +95,25 @@ export default function HomePage() {
           ))}
         </div>
 
-        <article className="mt-4 border border-ink bg-sheet p-5">
-          <p className="text-xs font-medium tracking-widest text-ink-soft">제2분야 · 공통</p>
-          <h3 className="mt-1 font-display text-lg font-bold">{COMMON_DOMAIN.title}</h3>
-          <p className="mt-1 text-xs text-ink-soft">
-            평가 대상 · {COMMON_DOMAIN.target} — 두 트랙 모두 같은 잣대로 봅니다.
-          </p>
-          <ul className="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t border-line pt-3 text-sm text-ink-soft">
-            {COMMON_DOMAIN.items.map((item) => (
-              <li key={item} className="flex gap-2">
-                <span aria-hidden className="text-line-strong">
-                  —
-                </span>
-                {item}
-              </li>
-            ))}
-          </ul>
-        </article>
+        {COMMON_DOMAINS.map((domain) => (
+          <article key={domain.no} className="mt-4 border border-ink bg-sheet p-5">
+            <p className="text-xs font-medium tracking-widest text-ink-soft">{domain.no} · 공통</p>
+            <h3 className="mt-1 font-display text-lg font-bold">{domain.title}</h3>
+            <p className="mt-1 text-xs text-ink-soft">
+              평가 대상 · {domain.target} — 두 트랙 모두 같은 잣대로 봅니다.
+            </p>
+            <ul className="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t border-line pt-3 text-sm text-ink-soft">
+              {domain.items.map((item) => (
+                <li key={item} className="flex gap-2">
+                  <span aria-hidden className="text-line-strong">
+                    —
+                  </span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </article>
+        ))}
       </section>
 
       {/* 채점 방식 */}
@@ -122,7 +138,7 @@ export default function HomePage() {
             <dt className="font-bold">부적격 분야 0점</dt>
             <dd className="mt-1 leading-relaxed text-ink-soft">
               무의미한 입력이나 주제가 다른 제출물은 해당 분야를 0점으로 처리하고
-              사유를 결과서에 명시합니다. 두 분야 모두 부적격이면 전 항목 0점입니다.
+              사유를 결과서에 명시합니다. 모든 분야가 부적격이면 전 항목 0점입니다.
             </dd>
           </div>
         </dl>

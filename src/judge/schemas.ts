@@ -21,6 +21,12 @@ export const intentScoresSchema = z.object({
   fidelity_no_bloat: score,
 });
 
+export const securityScoresSchema = z.object({
+  data_protection: score,
+  access_control: score,
+  security_requirements: score,
+});
+
 export const riskReasonItemSchema = z.object({
   criterion_key: z
     .string()

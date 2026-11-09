@@ -1,12 +1,11 @@
 "use client";
 
-import { NO_SIGNIFICANT_RISKS } from "@/judge/riskBuilder";
+import { isNoSignificantRisks } from "@/judge/riskBuilder";
 import type { ApiEvaluation } from "./types";
 
 /** 감점 요인 — 최대 5개. 감점이 없으면 순번 없이 긍정 톤으로 표시 */
 export function RiskList({ result }: { result: ApiEvaluation }) {
-  const none =
-    result.risks.length === 1 && result.risks[0] === NO_SIGNIFICANT_RISKS;
+  const none = isNoSignificantRisks(result.risks);
 
   return (
     <section>

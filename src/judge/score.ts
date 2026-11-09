@@ -3,6 +3,8 @@ import { domain1Keys, trackSpec } from "./tracks";
 import {
   INTENT_DOMAIN_LABEL,
   INTENT_IMPLEMENTATION_FIELDS,
+  SECURITY_DOMAIN_LABEL,
+  SECURITY_FIELDS,
   type DomainAssessment,
   type EvaluationMode,
   type JudgeTrack,
@@ -31,8 +33,13 @@ export function intentImplementationScore(scores: ScoreMap): number {
   ]);
 }
 
+export function securityScore(scores: ScoreMap): number {
+  return avg([scores.data_protection, scores.access_control, scores.security_requirements]);
+}
+
+/** 종합 점수 — 3개 분야 평균 (v2.3부터. 이전 2분야 결과와 비교 불가) */
 export function totalScore(track: JudgeTrack, scores: ScoreMap): number {
-  return avg([domain1Score(track, scores), intentImplementationScore(scores)]);
+  return avg([domain1Score(track, scores), intentImplementationScore(scores), securityScore(scores)]);
 }
 
 export function evaluationMode(
@@ -41,9 +48,10 @@ export function evaluationMode(
   scores: ScoreMap,
 ): EvaluationMode {
   if (assessment.all_fatal) return "fatal_zero";
-  // 두 분야가 모두 부적격이면 채점된 항목이 하나도 없다 — "부분 심사"가 아닌 전 항목 0점
-  if (!assessment.domain1_ok && !assessment.domain2_ok) return "full_zero";
-  if (!assessment.domain1_ok || !assessment.domain2_ok) return "partial";
+  const okFlags = [assessment.domain1_ok, assessment.domain2_ok, assessment.domain3_ok];
+  // 모든 분야가 부적격이면 채점된 항목이 하나도 없다 — "부분 심사"가 아닌 전 항목 0점
+  if (okFlags.every((ok) => !ok)) return "full_zero";
+  if (okFlags.some((ok) => !ok)) return "partial";
   if (totalScore(track, scores) === 0) return "full_zero";
   return "full";
 }
@@ -52,6 +60,7 @@ export function domainSummaryRows(track: JudgeTrack, scores: ScoreMap) {
   return [
     { 분야: trackSpec(track).domain1Label, 점수: domain1Score(track, scores) },
     { 분야: INTENT_DOMAIN_LABEL, 점수: intentImplementationScore(scores) },
+    { 분야: SECURITY_DOMAIN_LABEL, 점수: securityScore(scores) },
     { 분야: "종합", 점수: totalScore(track, scores) },
   ];
 }
@@ -73,6 +82,13 @@ export function detailScoreRows(track: JudgeTrack, scores: ScoreMap) {
       점수: scores[field as keyof ScoreMap],
     });
   }
+  for (const [field, label] of Object.entries(SECURITY_FIELDS)) {
+    rows.push({
+      분야: SECURITY_DOMAIN_LABEL,
+      "세부 항목": label,
+      점수: scores[field as keyof ScoreMap],
+    });
+  }
   return rows;
 }
 
@@ -86,4 +102,7 @@ export const ZERO_SCORES: ScoreMap = {
   requirement_coverage: 0,
   success_criteria_met: 0,
   fidelity_no_bloat: 0,
+  data_protection: 0,
+  access_control: 0,
+  security_requirements: 0,
 };

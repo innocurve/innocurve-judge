@@ -27,7 +27,7 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "AI 심사위원 — 바이브 코딩 검증",
   description:
-    "공개 GitHub 레포를 제출하면 기관용·기업용 트랙으로 2개 분야 6개 항목을 " +
+    "공개 GitHub 레포를 제출하면 기관용·기업용 트랙으로 3개 분야 9개 항목을 " +
     "앙상블 채점하고 심사 결과서를 발급합니다.",
 };
 
@@ -82,7 +82,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <footer data-site-footer className="border-t border-line bg-sheet">
           <div className="mx-auto flex w-full max-w-4xl flex-col gap-1 px-5 py-4 text-xs text-ink-soft sm:flex-row sm:items-center sm:justify-between">
             <span>AI 심사위원 · 점수는 참고용이며 최종 심사를 대신하지 않습니다.</span>
-            <span className="shrink-0 font-mono">v2.2</span>
+            <span className="shrink-0 font-mono">v2.3</span>
           </div>
         </footer>
       </body>

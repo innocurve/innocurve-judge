@@ -1,6 +1,6 @@
 // Design Ref: §3.1 — 필드명은 프롬프트·기존 API와 동일한 snake_case 유지 (회귀 방지)
 
-/** 심사 트랙 — 분야1(기획 평가)만 트랙별로 갈리고, 분야2(의도 구현도)는 공통 */
+/** 심사 트랙 — 분야1(기획 평가)만 트랙별로 갈리고, 분야2(의도 구현도)·분야3(보안 적합성)은 공통 */
 export type JudgeTrack = "public" | "corporate";
 
 export const JUDGE_TRACKS: readonly JudgeTrack[] = ["public", "corporate"];
@@ -28,19 +28,31 @@ export const INTENT_IMPLEMENTATION_FIELDS = {
   fidelity_no_bloat: "기획 의도 일치",
 } as const;
 
-/** 분야2 라벨은 트랙 공통. 분야1 라벨은 트랙 스펙(judge/tracks.ts)에서 가져온다 */
+export const SECURITY_FIELDS = {
+  data_protection: "민감정보 보호",
+  access_control: "접근 통제·입력 검증",
+  security_requirements: "보안 요구 반영",
+} as const;
+
+/** 분야2·3 라벨은 트랙 공통. 분야1 라벨은 트랙 스펙(judge/tracks.ts)에서 가져온다 */
 export const INTENT_DOMAIN_LABEL = "의도 구현도";
+export const SECURITY_DOMAIN_LABEL = "보안 적합성";
 
 export type PublicSectorKey = keyof typeof PUBLIC_SECTOR_FIELDS;
 export type CorporateKey = keyof typeof CORPORATE_FIELDS;
 export type Domain1Key = PublicSectorKey | CorporateKey;
 export type IntentKey = keyof typeof INTENT_IMPLEMENTATION_FIELDS;
-export type CriterionKey = Domain1Key | IntentKey;
+export type SecurityKey = keyof typeof SECURITY_FIELDS;
+export type CriterionKey = Domain1Key | IntentKey | SecurityKey;
+
+export const INTENT_KEYS = Object.keys(INTENT_IMPLEMENTATION_FIELDS) as IntentKey[];
+export const SECURITY_KEYS = Object.keys(SECURITY_FIELDS) as SecurityKey[];
 
 export const ALL_CRITERION_KEYS: CriterionKey[] = [
   ...(Object.keys(PUBLIC_SECTOR_FIELDS) as PublicSectorKey[]),
   ...(Object.keys(CORPORATE_FIELDS) as CorporateKey[]),
   ...(Object.keys(INTENT_IMPLEMENTATION_FIELDS) as IntentKey[]),
+  ...(Object.keys(SECURITY_FIELDS) as SecurityKey[]),
 ];
 
 /** 분야별 LLM structured output (1회 호출분) */
@@ -62,6 +74,12 @@ export interface IntentScores {
   fidelity_no_bloat: number;
 }
 
+export interface SecurityScores {
+  data_protection: number;
+  access_control: number;
+  security_requirements: number;
+}
+
 export interface RiskReasonItem {
   criterion_key: string;
   reason: string;
@@ -79,6 +97,8 @@ export interface DomainAssessment {
   domain1_reasons: string[];
   domain2_ok: boolean;
   domain2_reasons: string[];
+  domain3_ok: boolean;
+  domain3_reasons: string[];
   all_fatal: boolean;
   fatal_reasons: string[];
 }
@@ -94,7 +114,7 @@ export interface CriterionResult {
 
 /**
  * 세부 항목 점수 집합 (앙상블 집계 후 확정값).
- * 전체 키를 담되 실제로 채점되는 것은 트랙별 6개 — 나머지 분야1 키는 0으로 남는다.
+ * 전체 키를 담되 실제로 채점되는 것은 트랙별 9개 — 나머지 분야1 키는 0으로 남는다.
  */
 export type ScoreMap = Record<CriterionKey, number>;
 

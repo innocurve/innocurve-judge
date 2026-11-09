@@ -220,6 +220,8 @@ export function assessDomains(planText: string, codeText: string): DomainAssessm
     domain1_reasons: [],
     domain2_ok: true,
     domain2_reasons: [],
+    domain3_ok: true,
+    domain3_reasons: [],
     all_fatal: false,
     fatal_reasons: [],
   };
@@ -230,7 +232,7 @@ export function assessDomains(planText: string, codeText: string): DomainAssessm
     return result;
   }
 
-  // 기획서 미발견(레포 자동 수집 기준) — 두 분야 모두 부적격 처리
+  // 기획서 미발견(레포 자동 수집 기준) — 모든 분야 부적격 처리
   const planMissing = !planText.trim();
   const planMissingReason =
     "레포에서 기획 문서(PRD.md·PLAN.md)를 찾을 수 없습니다.";
@@ -260,6 +262,14 @@ export function assessDomains(planText: string, codeText: string): DomainAssessm
   if (d2Code.length > 0 || d2Align.length > 0 || d2PlanMin.length > 0) {
     result.domain2_ok = false;
     result.domain2_reasons = [...d2Code, ...d2Align, ...d2PlanMin];
+  }
+
+  // 분야3(보안)은 코드 자체를 보므로 주제 불일치와 무관하다. 다만 "보안 요구 반영"이
+  // 기획 문서를 근거로 하므로 기획 문서가 없으면 다른 분야처럼 부적격 처리한다.
+  const d3 = [...d2Code, ...(planMissing ? [planMissingReason] : [])];
+  if (d3.length > 0) {
+    result.domain3_ok = false;
+    result.domain3_reasons = d3;
   }
 
   return result;

@@ -1,6 +1,6 @@
 "use client";
 
-import { MODE_BADGES, type ApiEvaluation } from "./types";
+import { MODE_BADGES, resultDomains, type ApiEvaluation } from "./types";
 
 /** 관인 스탬프 + 종합 점수 — 결과서의 시그니처 요소 */
 export function ScoreHero({ result }: { result: ApiEvaluation }) {
@@ -23,13 +23,10 @@ export function ScoreHero({ result }: { result: ApiEvaluation }) {
           <span className="ml-1 text-lg text-ink-soft">/ 100</span>
         </p>
         <dl className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-sm">
-          {[
-            [result.domain_labels.domain1, result.domain1_score],
-            [result.domain_labels.domain2, result.domain2_score],
-          ].map(([label, score]) => (
-            <div key={String(label)} className="flex items-baseline gap-2">
-              <dt className="text-ink-soft">{label}</dt>
-              <dd className="font-mono font-semibold tabular-nums">{score}</dd>
+          {resultDomains(result).map((domain) => (
+            <div key={domain.title} className="flex items-baseline gap-2">
+              <dt className="text-ink-soft">{domain.title}</dt>
+              <dd className="font-mono font-semibold tabular-nums">{domain.score}</dd>
             </div>
           ))}
         </dl>

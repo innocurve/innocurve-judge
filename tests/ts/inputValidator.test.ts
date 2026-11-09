@@ -39,6 +39,19 @@ describe("assessDomains", () => {
     expect(assessment.domain1_ok).toBe(false);
     expect(assessment.domain2_ok).toBe(false);
     expect(assessment.domain1_reasons[0]).toContain("기획 문서");
+    expect(assessment.domain3_ok).toBe(false);
+  });
+
+  it("주제 불일치는 의도 구현도만 0점, 보안 분야는 그대로 채점", () => {
+    const plan =
+      "# 뉴스 요약 앱 기획서\n\n뉴스 기사를 모아 요약합니다. 뉴스 출처별로 정리하고 " +
+      "뉴스 키워드를 추출하는 기능을 구현합니다. 성공 기준: 사용자가 뉴스 요약을 화면에서 본다.\n";
+    const code =
+      "import streamlit as st\n\nst.title('영수증 정산')\nfile = st.file_uploader('영수증')\n" +
+      "st.write('정산 결과')\nst.dataframe(rows)\n";
+    const assessment = assessDomains(plan, code);
+    expect(assessment.domain2_ok).toBe(false);
+    expect(assessment.domain3_ok).toBe(true);
   });
 
   it("코드가 없으면 fatal", () => {

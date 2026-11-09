@@ -1,18 +1,23 @@
-// Design Ref: §2.1 — 채점 기준(6개 세부 항목)에 맞춘 감점 요인 합성. judge/risk_builder.py 동등 이식
+// Design Ref: §2.1 — 채점 기준(9개 세부 항목)에 맞춘 감점 요인 합성. judge/risk_builder.py 동등 이식
 import { domain1Keys, trackSpec } from "./tracks";
 import {
   INTENT_DOMAIN_LABEL,
   INTENT_IMPLEMENTATION_FIELDS,
+  INTENT_KEYS,
+  SECURITY_DOMAIN_LABEL,
+  SECURITY_FIELDS,
+  SECURITY_KEYS,
   type CriterionKey,
   type DomainAssessment,
   type IntentKey,
+  type SecurityKey,
   type JudgeTrack,
   type ScoreMap,
 } from "./types";
 
 export const LOW_SCORE_THRESHOLD = 70;
 export const NO_SIGNIFICANT_RISKS =
-  "6개 세부 항목이 모두 70점 이상으로, 채점 기준상 뚜렷한 감점 요인은 없습니다.";
+  "9개 세부 항목이 모두 70점 이상으로, 채점 기준상 뚜렷한 감점 요인은 없습니다.";
 
 const INTENT_REASONS: Record<IntentKey, Array<[number, number, string]>> = {
   requirement_coverage: [
@@ -29,6 +34,26 @@ const INTENT_REASONS: Record<IntentKey, Array<[number, number, string]>> = {
   ],
 };
 
+/** 감점 없음 문구인지 — v2.2 이전 기록의 "6개 세부 항목…" 문구도 인정 */
+export function isNoSignificantRisks(risks: string[]): boolean {
+  return risks.length === 1 && /^\d+개 세부 항목이 모두 70점 이상으로/.test(risks[0]);
+}
+
+const SECURITY_REASONS: Record<SecurityKey, Array<[number, number, string]>> = {
+  data_protection: [
+    [0, 49, "비밀값이 코드에 노출되었거나 비밀번호·개인정보를 안전하지 않게 다룹니다."],
+    [50, 69, "민감한 값을 응답·화면·로그에 필요 이상으로 내보냅니다."],
+  ],
+  access_control: [
+    [0, 49, "로그인·권한 없이 데이터를 읽고 쓸 수 있거나, 입력을 그대로 쿼리·HTML에 이어 붙입니다."],
+    [50, 69, "권한 확인이나 서버 쪽 입력 검증이 일부 경로에서 빠져 있습니다."],
+  ],
+  security_requirements: [
+    [0, 49, "기획 문서가 약속한 보안 요구를 코드가 지키지 않습니다."],
+    [50, 69, "기획 문서에 보안·개인정보 요구가 없거나, 적어 둔 요구 중 상당수가 구현되지 않았습니다."],
+  ],
+};
+
 const FORBIDDEN_RISK_PATTERNS = [
   "변수명", "네이밍", "pep8", "pep 8", "코딩 스타일", "들여쓰기", "주석",
   "타입 힌트", "리팩토링", "성능 최적화", "디버깅", "print(", "로그를",
@@ -42,11 +67,12 @@ export interface RiskCandidate {
   score: number;
 }
 
-/** 세부 항목 키 → [분야명, 항목 라벨] (트랙별 분야1 + 공통 분야2) */
+/** 세부 항목 키 → [분야명, 항목 라벨] (트랙별 분야1 + 공통 분야2·3) */
 export function criterionMeta(track: JudgeTrack, key: CriterionKey): [string, string] {
   const spec = trackSpec(track);
   const domain1Label = spec.domain1Fields[key];
   if (domain1Label) return [spec.domain1Label, domain1Label];
+  if (key in SECURITY_FIELDS) return [SECURITY_DOMAIN_LABEL, SECURITY_FIELDS[key as SecurityKey]];
   return [INTENT_DOMAIN_LABEL, INTENT_IMPLEMENTATION_FIELDS[key as IntentKey]];
 }
 
@@ -58,6 +84,7 @@ export function defaultReason(
   const bands =
     trackSpec(track).domain1Reasons[criterionKey] ??
     INTENT_REASONS[criterionKey as IntentKey] ??
+    SECURITY_REASONS[criterionKey as SecurityKey] ??
     [];
   for (const [low, high, text] of bands) {
     if (low <= score && score <= high) return text;
@@ -97,9 +124,8 @@ export function collectRiskCandidates(
 ): RiskCandidate[] {
   const eligibleKeys: CriterionKey[] = [];
   if (assessment.domain1_ok) eligibleKeys.push(...domain1Keys(track));
-  if (assessment.domain2_ok) {
-    eligibleKeys.push("requirement_coverage", "success_criteria_met", "fidelity_no_bloat");
-  }
+  if (assessment.domain2_ok) eligibleKeys.push(...INTENT_KEYS);
+  if (assessment.domain3_ok) eligibleKeys.push(...SECURITY_KEYS);
 
   const candidates: RiskCandidate[] = [];
   for (const key of eligibleKeys) {

@@ -17,6 +17,9 @@ export interface NarrationPayload {
   domain1_score: number;
   domain2_label: string;
   domain2_score: number;
+  /** v2.3 이전 저장 기록에는 없음 */
+  domain3_label?: string;
+  domain3_score?: number;
   final_verdict: string;
 }
 
@@ -38,7 +41,10 @@ export function buildFallbackNarrationSegments(payload: NarrationPayload): Narra
         "안녕하세요, AI 심사위원입니다. " +
         `종합 점수는 ${payload.total_score}점이고, ` +
         `${payload.domain1_label} ${payload.domain1_score}점, ` +
-        `${payload.domain2_label} ${payload.domain2_score}점입니다.`,
+        `${payload.domain2_label} ${payload.domain2_score}점` +
+        (payload.domain3_label
+          ? `, ${payload.domain3_label} ${payload.domain3_score}점입니다.`
+          : "입니다."),
     },
     {
       id: "verdict",

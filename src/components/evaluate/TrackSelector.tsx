@@ -51,8 +51,8 @@ export function TrackSelector({ value, onChange, disabled }: TrackSelectorProps)
         })}
       </div>
       <p className="text-xs text-ink-soft">
-        두 트랙은 채점 기준이 달라 점수를 서로 비교할 수 없습니다. 의도 구현도 분야는
-        공통입니다.
+        두 트랙은 채점 기준이 달라 점수를 서로 비교할 수 없습니다. 의도 구현도·보안
+        적합성 분야는 공통입니다.
       </p>
     </fieldset>
   );

@@ -1,4 +1,4 @@
-// 신규: 점수 산출·evaluation_mode 판정 (트랙별 분야1 + 공통 분야2)
+// 점수 산출·evaluation_mode 판정 (트랙별 분야1 + 공통 분야2·3)
 import { describe, expect, it } from "vitest";
 import {
   detailScoreRows,
@@ -6,6 +6,7 @@ import {
   domainSummaryRows,
   evaluationMode,
   intentImplementationScore,
+  securityScore,
   totalScore,
   ZERO_SCORES,
 } from "@/judge/score";
@@ -16,6 +17,8 @@ const FULL_OK: DomainAssessment = {
   domain1_reasons: [],
   domain2_ok: true,
   domain2_reasons: [],
+  domain3_ok: true,
+  domain3_reasons: [],
   all_fatal: false,
   fatal_reasons: [],
 };
@@ -33,6 +36,10 @@ const SAMPLE: ScoreMap = {
   requirement_coverage: 90,
   success_criteria_met: 85,
   fidelity_no_bloat: 88,
+  // 공통 분야3 — 평균 70
+  data_protection: 80,
+  access_control: 70,
+  security_requirements: 60,
 };
 
 describe("점수 산출 (파이썬 round(x,1) 동등)", () => {
@@ -45,17 +52,22 @@ describe("점수 산출 (파이썬 round(x,1) 동등)", () => {
     expect(intentImplementationScore(SAMPLE)).toBe(87.7);
   });
 
-  it("종합 = 분야1·분야2 평균, 트랙마다 다르다", () => {
-    // 기관용: (75 + 87.7) / 2 = 81.35 → 81.4
-    expect(totalScore("public", SAMPLE)).toBe(81.4);
-    // 기업용: (60 + 87.7) / 2 = 73.85 → 73.9
-    expect(totalScore("corporate", SAMPLE)).toBe(73.9);
+  it("분야3(보안)은 트랙 공통", () => {
+    expect(securityScore(SAMPLE)).toBe(70);
+  });
+
+  it("종합 = 3개 분야 평균, 트랙마다 다르다", () => {
+    // 기관용: (75 + 87.7 + 70) / 3 = 77.57 → 77.6
+    expect(totalScore("public", SAMPLE)).toBe(77.6);
+    // 기업용: (60 + 87.7 + 70) / 3 = 72.57 → 72.6
+    expect(totalScore("corporate", SAMPLE)).toBe(72.6);
   });
 
   it("요약·세부 행 구조", () => {
-    expect(domainSummaryRows("public", SAMPLE)).toHaveLength(3);
-    expect(detailScoreRows("public", SAMPLE)).toHaveLength(6);
-    expect(detailScoreRows("corporate", SAMPLE)).toHaveLength(6);
+    expect(domainSummaryRows("public", SAMPLE)).toHaveLength(4);
+    expect(detailScoreRows("public", SAMPLE)).toHaveLength(9);
+    expect(detailScoreRows("corporate", SAMPLE)).toHaveLength(9);
+    expect(domainSummaryRows("public", SAMPLE)[2]["분야"]).toBe("보안 적합성");
   });
 
   it("세부 행에는 해당 트랙의 분야1 항목만 담긴다", () => {
@@ -74,7 +86,7 @@ describe("점수 산출 (파이썬 round(x,1) 동등)", () => {
 });
 
 describe("evaluationMode", () => {
-  it("두 분야 적격 + 점수 존재 → full", () => {
+  it("모든 분야 적격 + 점수 존재 → full", () => {
     expect(evaluationMode("public", FULL_OK, SAMPLE)).toBe("full");
     expect(evaluationMode("corporate", FULL_OK, SAMPLE)).toBe("full");
   });
@@ -85,13 +97,17 @@ describe("evaluationMode", () => {
     );
   });
 
-  it("두 분야 모두 부적격(기획서 미발견) → partial이 아닌 full_zero", () => {
-    const noPlan = { ...FULL_OK, domain1_ok: false, domain2_ok: false };
+  it("보안 분야만 부적격이어도 partial", () => {
+    expect(evaluationMode("public", { ...FULL_OK, domain3_ok: false }, SAMPLE)).toBe("partial");
+  });
+
+  it("모든 분야 부적격(기획서 미발견) → partial이 아닌 full_zero", () => {
+    const noPlan = { ...FULL_OK, domain1_ok: false, domain2_ok: false, domain3_ok: false };
     expect(evaluationMode("public", noPlan, ZERO_SCORES)).toBe("full_zero");
     expect(evaluationMode("corporate", noPlan, ZERO_SCORES)).toBe("full_zero");
   });
 
-  it("두 분야 적격이지만 0점 → full_zero", () => {
+  it("모든 분야 적격이지만 0점 → full_zero", () => {
     expect(evaluationMode("public", FULL_OK, ZERO_SCORES)).toBe("full_zero");
   });
 

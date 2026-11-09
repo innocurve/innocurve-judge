@@ -5,6 +5,7 @@ import {
   composeRisks,
   criterionMeta,
   formatRisk,
+  isNoSignificantRisks,
   NO_SIGNIFICANT_RISKS,
   sanitizeReason,
   type RiskCandidate,
@@ -22,6 +23,9 @@ function scores(overrides: Partial<ScoreMap> = {}): ScoreMap {
     requirement_coverage: 80,
     success_criteria_met: 80,
     fidelity_no_bloat: 80,
+    data_protection: 80,
+    access_control: 80,
+    security_requirements: 80,
     ...overrides,
   };
 }
@@ -32,6 +36,8 @@ function assessment(): DomainAssessment {
     domain1_reasons: [],
     domain2_ok: true,
     domain2_reasons: [],
+    domain3_ok: true,
+    domain3_reasons: [],
     all_fatal: false,
     fatal_reasons: [],
   };
@@ -126,6 +132,32 @@ describe("riskBuilder", () => {
     const risks = composeRisks("public", candidates, {}, skip);
     expect(risks[0]).toBe(skip[0]);
     expect(risks.some((item) => item.includes("핵심 요구사항 구현"))).toBe(true);
+  });
+
+  it("보안 항목도 감점 후보·라벨·기본 사유를 갖는다", () => {
+    const candidates = collectRiskCandidates("corporate", scores({ data_protection: 30 }), assessment());
+    expect(candidates.map((c) => c.key)).toEqual(["data_protection"]);
+    expect(criterionMeta("public", "access_control")).toEqual(["보안 적합성", "접근 통제·입력 검증"]);
+    const line = formatRisk("public", candidates[0], "");
+    expect(line.startsWith("[보안 적합성] 민감정보 보호(30점):")).toBe(true);
+    expect(line).toContain("비밀값");
+  });
+
+  it("보안 분야가 부적격이면 보안 항목은 후보에서 빠진다", () => {
+    const candidates = collectRiskCandidates(
+      "public",
+      scores({ access_control: 0 }),
+      { ...assessment(), domain3_ok: false },
+    );
+    expect(candidates).toHaveLength(0);
+  });
+
+  it("감점 없음 문구는 이전 6항목 기록도 인정", () => {
+    expect(isNoSignificantRisks([NO_SIGNIFICANT_RISKS])).toBe(true);
+    expect(
+      isNoSignificantRisks(["6개 세부 항목이 모두 70점 이상으로, 채점 기준상 뚜렷한 감점 요인은 없습니다."]),
+    ).toBe(true);
+    expect(isNoSignificantRisks(["[보안 적합성] 민감정보 보호(30점): 문제"])).toBe(false);
   });
 
   it("금지 토큰 포함 사유는 빈 문자열", () => {

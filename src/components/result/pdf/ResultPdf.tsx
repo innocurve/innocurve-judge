@@ -1,8 +1,8 @@
 // 심사 결과서 PDF (A4) — @react-pdf/renderer 문서. 화면 결과서와 같은 내용을 공문서 서식으로 옮긴다.
 // 이 모듈은 PDF 받기 버튼을 누를 때만 동적으로 불러온다(초기 번들에 포함하지 않음).
 import { Document, Font, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
-import { NO_SIGNIFICANT_RISKS } from "@/judge/riskBuilder";
-import { MODE_BADGES, scoreTone, type ApiEvaluation } from "../types";
+import { isNoSignificantRisks } from "@/judge/riskBuilder";
+import { MODE_BADGES, resultDomains, scoreTone, type ApiEvaluation } from "../types";
 
 const COLORS = {
   paper: "#f7f7f3",
@@ -178,7 +178,7 @@ function MissingDocs({ missing }: { missing: string[] }) {
       <Text style={styles.noticeTitle}>누락된 파일: {missing.join(", ")}</Text>
       <Text>
         {allMissing
-          ? "레포에서 기획 문서를 찾지 못해 두 분야 모두 0점 처리했습니다."
+          ? "레포에서 기획 문서를 찾지 못해 모든 분야를 0점 처리했습니다."
           : "있는 문서만으로 채점했습니다. 빠진 문서를 함께 올리면 채점 근거가 더 충실해집니다."}
       </Text>
     </View>
@@ -189,23 +189,10 @@ export function ResultPdf({ result }: { result: ApiEvaluation }) {
   const badge = MODE_BADGES[result.evaluation_mode];
   const repo = result.repo;
   const evaluatedAt = result.evaluated_at ? new Date(result.evaluated_at) : new Date();
-  const noRisks = result.risks.length === 1 && result.risks[0] === NO_SIGNIFICANT_RISKS;
+  const noRisks = isNoSignificantRisks(result.risks);
   const showSpread = result.ensemble.n > 1;
 
-  const domains = [
-    {
-      title: result.domain_labels.domain1,
-      score: result.domain1_score,
-      skipped: result.domain_skipped.domain1,
-      reasons: result.skip_reasons.domain1,
-    },
-    {
-      title: result.domain_labels.domain2,
-      score: result.domain2_score,
-      skipped: result.domain_skipped.domain2,
-      reasons: result.skip_reasons.domain2,
-    },
-  ];
+  const domains = resultDomains(result);
 
   return (
     <Document

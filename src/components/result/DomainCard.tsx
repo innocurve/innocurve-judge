@@ -1,36 +1,13 @@
 "use client";
 
-import { scoreTone, TONE_TEXT, type ApiEvaluation } from "./types";
+import { resultDomains, scoreTone, TONE_TEXT, type ApiEvaluation } from "./types";
 
-interface DomainInfo {
-  title: string;
-  score: number;
-  skipped: boolean;
-  reasons: string[];
-}
-
-function domains(result: ApiEvaluation): DomainInfo[] {
-  return [
-    {
-      title: result.domain_labels.domain1,
-      score: result.domain1_score,
-      skipped: result.domain_skipped.domain1,
-      reasons: result.skip_reasons.domain1,
-    },
-    {
-      title: result.domain_labels.domain2,
-      score: result.domain2_score,
-      skipped: result.domain_skipped.domain2,
-      reasons: result.skip_reasons.domain2,
-    },
-  ];
-}
-
-/** 분야 카드 2개 — 부적격 분야는 사유를 함께 표기 */
+/** 분야 카드(3개, 이전 기록은 2개) — 부적격 분야는 사유를 함께 표기 */
 export function DomainCards({ result }: { result: ApiEvaluation }) {
+  const domains = resultDomains(result);
   return (
-    <section className="grid gap-3 sm:grid-cols-2">
-      {domains(result).map((domain) => (
+    <section className={`grid gap-3 ${domains.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+      {domains.map((domain) => (
         <article key={domain.title} className="border border-line bg-paper p-4">
           <h3 className="text-sm font-bold">{domain.title}</h3>
           {domain.skipped ? (

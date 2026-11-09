@@ -25,7 +25,7 @@ export function MissingDocsNotice({ result }: { result: ApiEvaluation }) {
       </p>
       <p className="mt-1">
         {allMissing
-          ? "레포에서 기획 문서를 찾지 못해 두 분야 모두 0점 처리했습니다. PRD.md 또는 PLAN.md를 레포에 올린 뒤 다시 제출해 주세요."
+          ? "레포에서 기획 문서를 찾지 못해 모든 분야를 0점 처리했습니다. PRD.md 또는 PLAN.md를 레포에 올린 뒤 다시 제출해 주세요."
           : "있는 문서만으로 채점했습니다. 빠진 문서를 함께 올리면 채점 근거가 더 충실해집니다."}
       </p>
     </section>

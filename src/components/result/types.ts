@@ -23,11 +23,13 @@ export interface ApiEvaluation {
   total_score: number;
   domain1_score: number;
   domain2_score: number;
-  domain_labels: { domain1: string; domain2: string };
+  /** 보안 적합성 — v2.3 이전 저장 기록에는 없음 */
+  domain3_score?: number;
+  domain_labels: { domain1: string; domain2: string; domain3?: string };
   review_fallback: boolean;
   evaluation_mode: EvaluationMode;
-  skip_reasons: { domain1: string[]; domain2: string[] };
-  domain_skipped: { domain1: boolean; domain2: boolean };
+  skip_reasons: { domain1: string[]; domain2: string[]; domain3?: string[] };
+  domain_skipped: { domain1: boolean; domain2: boolean; domain3?: boolean };
   ensemble: { n: number; model: string; fallback_used: boolean; unstable_count: number };
   criteria: ApiCriterion[];
   repo?: {
@@ -55,6 +57,40 @@ export type StreamLine =
   | { type: "stage"; stage: StreamStage; message: string }
   | { type: "result"; data: ApiEvaluation }
   | { type: "error"; error: { code: string; message: string } };
+
+export interface DomainInfo {
+  title: string;
+  score: number;
+  skipped: boolean;
+  reasons: string[];
+}
+
+/** 결과서에 표시할 분야 목록 — 보안 분야가 없는 이전 기록은 2개만 */
+export function resultDomains(result: ApiEvaluation): DomainInfo[] {
+  const domains: DomainInfo[] = [
+    {
+      title: result.domain_labels.domain1,
+      score: result.domain1_score,
+      skipped: result.domain_skipped.domain1,
+      reasons: result.skip_reasons.domain1,
+    },
+    {
+      title: result.domain_labels.domain2,
+      score: result.domain2_score,
+      skipped: result.domain_skipped.domain2,
+      reasons: result.skip_reasons.domain2,
+    },
+  ];
+  if (result.domain_labels.domain3 && result.domain3_score !== undefined) {
+    domains.push({
+      title: result.domain_labels.domain3,
+      score: result.domain3_score,
+      skipped: result.domain_skipped.domain3 ?? false,
+      reasons: result.skip_reasons.domain3 ?? [],
+    });
+  }
+  return domains;
+}
 
 /** 점수대별 시각 톤 — 70 이상 적정(청록), 50~69 주의(황갈), 미만 미흡(인주) */
 export function scoreTone(score: number): "verdant" | "caution" | "seal" {
