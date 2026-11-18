@@ -137,7 +137,12 @@ function countOccurrences(haystack: string, needle: string): number {
  * - 앞 글자가 소문자인데 일치가 소문자로 시작하면(`renews`) 단어 중간이라 세지 않는다.
  *   `addTodo`처럼 대문자로 시작하면 camelCase 새 단어라 센다
  * - 뒤는 보지 않는다 — `uploaded`·`todos`·`charts`는 같은 주제다
+ * - `org-chart`·`orgChart`·`org_chart`(조직도)와 `flowchart`(순서도)의 chart는 그래프가 아니라 세지 않는다.
+ *   조직도 파일을 읽는 앱(`lib/org-chart.ts`, `orgChartText()`)이 "그래프" 주제로 잡혀
+ *   "파일 업로드" 기획서와 주제 불일치로 의도 구현도가 0점이 됐다 (실제 발생)
  */
+const NOT_A_GRAPH_BEFORE_CHART = /(?:org[-_ ]?|flow[-_ ]?)$/i;
+
 function countAsciiToken(text: string, token: string): number {
   const re = new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
   let count = 0;
@@ -145,6 +150,7 @@ function countAsciiToken(text: string, token: string): number {
     const at = m.index ?? 0;
     if (/[a-z][A-Z]/.test(m[0])) continue;
     if (at > 0 && /[a-z]/.test(text[at - 1]) && /[a-z]/.test(m[0][0])) continue;
+    if (token === "chart" && NOT_A_GRAPH_BEFORE_CHART.test(text.slice(Math.max(0, at - 5), at))) continue;
     count += 1;
   }
   return count;
