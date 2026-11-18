@@ -143,6 +143,23 @@ describe("assessDomains", () => {
     expect(counts.get("upload")).toBe(1); // uploadedFiles 만 — reupload 는 단어 중간
   });
 
+  it("조직도(org-chart)·순서도(flowchart)는 그래프 주제로 세지 않아 주제 불일치로 0점 처리하지 않음", () => {
+    // 실제 사례: 국회 요구자료 분류 앱. 기획서는 "요구서 업로드"를 여러 번, 코드는 직제(조직도) 파일을
+    // org-chart·orgChartText 로 7번 — "그래프"가 코드 주제로 떠서 의도 구현도가 0점이 됐다
+    const plan =
+      "# 국회 요구자료 분류봇 기획서\n\n## 핵심 기능\n1. 요구서 파일 업로드\n2. 업로드한 요구서를 항목별로 나눔\n" +
+      "3. 직제를 기준으로 담당 실·국 추천\n\n## 예외\n- 읽을 수 없는 파일 업로드: 안내 문구 표시\n" +
+      "## 성공 기준\n사용자가 화면에서 담당 실·국과 근거를 확인할 수 있다.\n";
+    const code =
+      'import orgChart from "@/data/org-chart.json";\nimport { orgChartText } from "@/lib/org-chart";\n' +
+      "export function orgChartText() {\n  return orgChart.map((d) => d.name).join(', ');\n}\n" +
+      'const prompt = buildPrompt(orgChartText());\nlog("org-chart-classify");\n// org_chart 기준 분류, flowchart 없음\n';
+    expect(topicCounts(code).get("chart")).toBeUndefined();
+    expect(assessDomains(plan, code).domain2_ok).toBe(true);
+    // 진짜 그래프 코드는 그대로 센다
+    expect(topicCounts("<BarChart /> <LineChart /> renderChart(chartData)").get("chart")).toBe(4);
+  });
+
   it("공공 API 숫자 ID가 있어도 코드 정상 인식", () => {
     const [plan] = loadExample();
     const code =
