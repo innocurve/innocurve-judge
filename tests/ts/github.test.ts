@@ -5,6 +5,7 @@ import {
   filePriority,
   findDocPath,
   findPlanPath,
+  isVendoredContent,
   parseGithubUrl,
   rateLimitMessage,
   selectRepoFiles,
@@ -108,6 +109,35 @@ describe("파일 선택", () => {
     expect(selected.slice(-4)).toEqual([
       "app/design-system.css", "app/globals.css", "eslint.config.mjs", "next.config.ts",
     ]);
+  });
+});
+
+describe("외부 라이브러리·자동 생성 파일 제외", () => {
+  it("wasm·vendor·third_party 폴더는 수집하지 않는다 (한남대 운동 자세 앱 회귀)", () => {
+    // 실제 사례: MediaPipe 연결 코드(public/mediapipe/wasm/*.js, 각 33만 자)가 로직 우선순위로 들어와
+    // 수집 한도를 차지하고, 그 안의 TODO 주석이 "할 일 관리" 주제로 잡혀 의도 구현도가 0점이 됐다
+    const tree = [
+      "app/page.tsx", "lib/pose.ts", "lib/ai.ts", "components/FeedbackResult.tsx",
+      "public/mediapipe/wasm/vision_wasm_internal.js", "public/mediapipe/wasm/vision_wasm_module_internal.js",
+      "public/vendor/chart.js", "src/third_party/lib.js", "third-party/x.ts",
+    ].map((path) => ({ type: "blob", path }));
+    const selected = selectRepoFiles(tree);
+    expect(selected).toEqual(expect.arrayContaining(["app/page.tsx", "lib/pose.ts", "lib/ai.ts", "components/FeedbackResult.tsx"]));
+    expect(selected.filter((p) => /wasm|vendor|third/.test(p))).toEqual([]);
+  });
+
+  it("내용으로 거른다 — Emscripten 연결 코드·외부 라이선스 머리말·압축 파일", () => {
+    expect(isVendoredContent("// This code implements the `-sMODULARIZE` settings by taking the generated\nvar ModuleFactory = (() => {")).toBe(true);
+    expect(isVendoredContent("var Module = {};\n// emscripten runtime\n")).toBe(true);
+    expect(isVendoredContent("/**\n * @license\n * Copyright 2023 Google LLC\n */\nexport const x = 1;")).toBe(true);
+    expect(isVendoredContent("!function(e){" + "var a=1;".repeat(600) + "}();")).toBe(true);
+  });
+
+  it("수강생 코드는 남긴다 — 평범한 코드, 긴 base64 한 줄이 섞인 코드, 직접 쓴 저작권 주석", () => {
+    expect(isVendoredContent("export function score(x: number) {\n  return x * 2;\n}\n")).toBe(false);
+    const withDataUri = Array.from({ length: 60 }, (_, i) => `const v${i} = ${i};`).join("\n") + `\nconst logo = "data:image/png;base64,${"A".repeat(5000)}";\n`;
+    expect(isVendoredContent(withDataUri)).toBe(false);
+    expect(isVendoredContent("// Copyright 2026 김효은 — 세이프핏\nexport const app = 1;")).toBe(false);
   });
 });
 

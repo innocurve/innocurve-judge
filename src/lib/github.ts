@@ -16,6 +16,10 @@ const API_CACHE_TTL_MS = 300_000;
 const SKIP_DIR_PARTS = new Set([
   ".git", ".github", ".venv", "venv", "node_modules", "__pycache__",
   "dist", "build", ".eggs", "site-packages",
+  // 함께 올린 외부 라이브러리 — 수강생이 쓴 코드가 아니다. wasm 폴더의 .js 는 컴파일러가 만든 연결 코드다
+  // (MediaPipe vision_wasm_internal.js 가 로직 우선순위로 들어와 수집 한도를 차지하고, 그 안의 TODO 주석이
+  // "할 일 관리" 주제로 잡혀 의도 구현도가 0점이 됐다 — 한남대 운동 자세 앱, 2026-11-24)
+  "vendor", "vendors", "third_party", "third-party", "thirdparty", "wasm",
 ]);
 
 // 진입점·매니페스트 우선 수집 (언어 불문)
@@ -339,6 +343,23 @@ export function selectRepoFiles(entries: TreeEntry[]): string[] {
   return candidates.slice(0, MAX_FILES);
 }
 
+/**
+ * 내용으로 본 외부 라이브러리·자동 생성 파일 — 경로로 못 거른 것 (예: public/js/ 에 넣은 라이브러리).
+ * 수강생이 쓴 코드가 아니라 채점 근거가 될 수 없고, 수집 한도만 차지한다.
+ * - Emscripten 이 만든 wasm 연결 코드
+ * - 맨 위의 외부 라이선스 머리말(@license + Copyright)
+ * - 압축(minify)된 파일 — 아주 긴 줄이 있고 평균 줄 길이도 길다 (긴 base64 한 줄이 섞인 보통 코드는 남긴다)
+ */
+export function isVendoredContent(content: string): boolean {
+  const head = content.slice(0, 3000);
+  if (/emscripten|-sMODULARIZE|INNER_JS_CODE/i.test(head)) return true;
+  const banner = content.slice(0, 1500);
+  if (/@license\b/.test(banner) && /copyright/i.test(banner)) return true;
+  const lines = content.split("\n");
+  const longest = lines.reduce((max, line) => Math.max(max, line.length), 0);
+  return longest > 2000 && content.length / lines.length > 300;
+}
+
 async function buildCodeBundle(
   owner: string,
   repo: string,
@@ -356,7 +377,7 @@ async function buildCodeBundle(
   for (const filePath of paths) {
     if (total >= MAX_CODE_CHARS) break;
     let content = (await fetchRawFile(owner, repo, branch, filePath)).trim();
-    if (!content) continue;
+    if (!content || isVendoredContent(content)) continue;
     if (content.length > MAX_FILE_CHARS) {
       content = content.slice(0, MAX_FILE_CHARS) + "\n# ... (파일이 길어 일부만 포함)\n";
     }
