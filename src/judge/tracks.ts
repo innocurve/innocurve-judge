@@ -3,10 +3,13 @@
 import {
   CORPORATE_FIELDS,
   PUBLIC_SECTOR_FIELDS,
+  THEME_FIELDS,
+  isJudgeTrack,
   type CorporateKey,
   type Domain1Key,
   type JudgeTrack,
   type PublicSectorKey,
+  type ThemeKey,
 } from "./types";
 
 /** 점수대별 기본 감점 사유 — [하한, 상한, 문구] */
@@ -106,9 +109,47 @@ const CORPORATE_SPEC: TrackSpec = {
   skipLabel: "[기획서 0점]",
 };
 
+/**
+ * 주제 맞춤 — 학교·교육기관 과정처럼 "공공 업무"도 "사내 업무"도 아닌 산출물 (운영 요청 2026-11).
+ * 한남대 스포츠테크 앱을 기관용으로 돌리면 공공기관 맥락이 없다고 상한이 걸리고, 기업용은 자체 구축·비용을 따졌다.
+ * 주제(키워드)는 심사 접수 때 입력하고, 프롬프트(prompts/domain1_theme.txt)에 그대로 넣는다 (domain1ThemePrompt).
+ */
+const THEME_SPEC: TrackSpec = {
+  id: "theme",
+  label: "주제 맞춤",
+  description: "학교·교육기관 등 과정마다 정한 주제(키워드)에 맞는 기획인지를 기준으로 심사합니다.",
+  domain1Label: "주제 적합성",
+  domain1Target: "기획서",
+  domain1Intro: "기획서만 읽고 과정 주제에 맞는 문제를 골라 그 분야 사용자가 쓸 수 있게 기획했는지를 평가합니다.",
+  domain1Prompt: "domain1_theme.txt",
+  domain1Fields: THEME_FIELDS,
+  domain1Descriptions: {
+    theme_problem_clarity: "그 주제 분야에서 누가 어떤 상황에서 겪는 문제인지가 근거와 함께 드러나는가.",
+    theme_fit: "주제가 앱의 핵심 목적이고, 그 분야의 지식·데이터·규칙이 핵심 로직에 쓰였는가.",
+    theme_usability: "그 분야의 실제 사용자가 실제 환경의 제약 속에서 쓸 수 있는가.",
+  },
+  domain1Reasons: {
+    theme_problem_clarity: [
+      [0, 49, "기획서에 누가 어떤 상황에서 겪는 문제인지가 드러나지 않습니다."],
+      [50, 69, "대상 사용자는 있으나 문제 상황이 추상적으로 서술되어 있습니다."],
+    ],
+    theme_fit: [
+      [0, 49, "기획이 과정 주제와 관련이 거의 없습니다."],
+      [50, 69, "주제가 이름·배경에만 드러나고, 기능은 어느 분야에나 쓰이는 범용 도구에 가깝습니다."],
+    ],
+    theme_usability: [
+      [0, 49, "그 분야의 실제 사용 환경에서 쓰기 어려운 수준입니다."],
+      [50, 69, "입력 데이터 확보·사용 장소·기기 등 실제로 쓰기 위한 전제가 일부 비어 있습니다."],
+    ],
+  },
+  strengthFilter: /기획서|주제|부합|문제|현장|활용|적합성/i,
+  skipLabel: "[기획서 0점]",
+};
+
 const SPECS: Record<JudgeTrack, TrackSpec> = {
   public: PUBLIC_SPEC,
   corporate: CORPORATE_SPEC,
+  theme: THEME_SPEC,
 };
 
 export const DEFAULT_TRACK: JudgeTrack = "public";
@@ -118,8 +159,45 @@ export function trackSpec(track: JudgeTrack): TrackSpec {
 }
 
 export function allTrackSpecs(): TrackSpec[] {
-  return [PUBLIC_SPEC, CORPORATE_SPEC];
+  return [PUBLIC_SPEC, CORPORATE_SPEC, THEME_SPEC];
 }
+
+/** 요청·기록에서 읽은 트랙 문자열 — 모르는 값은 기관용(예전 기본값) */
+export function toJudgeTrack(raw: unknown): JudgeTrack {
+  return isJudgeTrack(raw) ? raw : DEFAULT_TRACK;
+}
+
+/**
+ * 주제 맞춤 채점 기준 버전 — 결과서(payload.rubric_version)에 남긴다. 프롬프트(DOMAIN1_THEME)를 고치면 올린다.
+ * 심사 기록에 남겨, 같은 주제 맞춤이라도 기준을 고치기 전 점수와 견주지 않게 한다.
+ * 1 = 첫 기준(버전 표시 없음) · 2 = 점수 보정(2026-11-24, 한남대 전원 95점)
+ */
+export const THEME_RUBRIC_VERSION = 2;
+
+/** 주제(키워드) 최대 길이 — "스포츠테크", "스마트 헬스케어", "지역 관광 콘텐츠" 정도 */
+export const JUDGE_THEME_MAX = 30;
+
+/**
+ * 주제(키워드) 정리 — 채점 프롬프트에 그대로 들어가므로 한 줄·짧게·글자만 남긴다.
+ * 누구나 입력할 수 있는 칸이라, 줄바꿈·기호로 프롬프트 지시문 모양이 되지 않게 막아 둔다.
+ */
+export function cleanJudgeTheme(raw: unknown):
+  { ok: true; theme: string } | { ok: false; error: string } {
+  const theme = String(raw ?? "")
+    .replace(/[^\p{L}\p{N} ·,&+\/()-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!theme) return { ok: false, error: "심사 주제(키워드)를 입력해 주세요. 예: 스포츠테크" };
+  if (theme.length > JUDGE_THEME_MAX) return { ok: false, error: `심사 주제는 ${JUDGE_THEME_MAX}자 이내로 입력해 주세요.` };
+  return { ok: true, theme };
+}
+
+/** 화면·결과서에 쓰는 기준 이름 — 주제 맞춤이면 주제를 붙인다: "주제 맞춤(스포츠테크)" */
+export function trackDisplayLabel(track: JudgeTrack, theme?: string | null): string {
+  const label = SPECS[track].label;
+  return track === "theme" && theme ? `${label}(${theme})` : label;
+}
+
 
 /** 해당 트랙이 채점하는 분야1 세부 항목 키 (프롬프트 필드 순서와 일치) */
 export function domain1Keys(track: JudgeTrack): Domain1Key[] {
@@ -128,3 +206,4 @@ export function domain1Keys(track: JudgeTrack): Domain1Key[] {
 
 export const PUBLIC_KEYS = Object.keys(PUBLIC_SECTOR_FIELDS) as PublicSectorKey[];
 export const CORPORATE_KEYS = Object.keys(CORPORATE_FIELDS) as CorporateKey[];
+export const THEME_KEYS = Object.keys(THEME_FIELDS) as ThemeKey[];

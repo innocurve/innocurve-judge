@@ -15,6 +15,12 @@ export const corporateScoresSchema = z.object({
   operational_viability: score,
 });
 
+export const themeScoresSchema = z.object({
+  theme_problem_clarity: score,
+  theme_fit: score,
+  theme_usability: score,
+});
+
 export const intentScoresSchema = z.object({
   requirement_coverage: score,
   success_criteria_met: score,
@@ -63,7 +69,9 @@ export const voiceNarrationSchema = z.object({
 export const evaluateRequestSchema = z.object({
   repo_url: z.string().min(8).max(500),
   // 미지정 시 기관용 — 기존 호출 하위 호환
-  track: z.enum(["public", "corporate"]).default("public"),
+  track: z.enum(["public", "corporate", "theme"]).default("public"),
+  // 주제 맞춤(theme)일 때만 — 정리·필수 확인은 route 가 cleanJudgeTheme 로 한다
+  theme: z.string().max(200).optional(),
 });
 
 export const ttsRequestSchema = z.object({

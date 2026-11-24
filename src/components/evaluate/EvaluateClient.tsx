@@ -22,6 +22,8 @@ type Phase =
 export function EvaluateClient() {
   const [repoUrl, setRepoUrl] = useState("");
   const [track, setTrack] = useState<JudgeTrack>("public");
+  // 주제 맞춤의 주제(키워드) — 다른 트랙을 골랐다 돌아와도 적어 둔 값이 남는다
+  const [theme, setTheme] = useState("");
   const [phase, setPhase] = useState<Phase>({ name: "idle" });
   const [keyMissing, setKeyMissing] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -38,7 +40,8 @@ export function EvaluateClient() {
   }, []);
 
   const running = phase.name === "running";
-  const canSubmit = !running && isValidRepoUrl(repoUrl) && !keyMissing;
+  const needTheme = track === "theme" && !theme.trim();
+  const canSubmit = !running && isValidRepoUrl(repoUrl) && !keyMissing && !needTheme;
 
   async function submit() {
     if (!canSubmit) return;
@@ -51,7 +54,11 @@ export function EvaluateClient() {
       const response = await fetch("/api/evaluate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repo_url: repoUrl.trim(), track }),
+        body: JSON.stringify({
+          repo_url: repoUrl.trim(),
+          track,
+          ...(track === "theme" && { theme: theme.trim() }),
+        }),
         signal: controller.signal,
       });
 
@@ -144,7 +151,13 @@ export function EvaluateClient() {
           }}
         >
           <div className="mt-6">
-            <TrackSelector value={track} onChange={setTrack} disabled={running} />
+            <TrackSelector
+              value={track}
+              onChange={setTrack}
+              theme={theme}
+              onThemeChange={setTheme}
+              disabled={running}
+            />
           </div>
           <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-end">
             <div className="flex-1">

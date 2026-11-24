@@ -32,6 +32,10 @@ const SAMPLE: ScoreMap = {
   problem_cost_clarity: 55,
   build_justification: 40,
   operational_viability: 85,
+  // 주제 맞춤 분야1 — 평균 80
+  theme_problem_clarity: 90,
+  theme_fit: 70,
+  theme_usability: 80,
   // 공통 분야2 — 평균 87.7
   requirement_coverage: 90,
   success_criteria_met: 85,

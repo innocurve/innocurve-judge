@@ -1,6 +1,7 @@
 // Design Ref: §4.2 POST /api/evaluate — NDJSON 스트리밍 (진행 단계 → 최종 결과)
 import { evaluateRequestSchema } from "@/judge/schemas";
 import { EvaluationError, RepoFetchError } from "@/judge/types";
+import { cleanJudgeTheme } from "@/judge/tracks";
 import { getOpenAIKey } from "@/lib/config";
 import { runEvaluation, type EvaluationStage } from "@/lib/evaluator";
 import { fetchGithubRepo } from "@/lib/github";
@@ -50,6 +51,17 @@ export async function POST(request: Request) {
     );
   }
 
+  const { repo_url, track } = parsed.data;
+  // 주제 맞춤은 주제(키워드)가 있어야 한다 — 입력 오류라 키 확인보다 먼저 알린다
+  let theme: string | null = null;
+  if (track === "theme") {
+    const cleaned = cleanJudgeTheme(parsed.data.theme);
+    if (!cleaned.ok) {
+      return Response.json({ error: { code: "INVALID_INPUT", message: cleaned.error } }, { status: 400 });
+    }
+    theme = cleaned.theme;
+  }
+
   if (getOpenAIKey() === null) {
     return Response.json(
       {
@@ -62,7 +74,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const { repo_url, track } = parsed.data;
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -85,6 +96,7 @@ export async function POST(request: Request) {
 
         const output = await runEvaluation(snapshot.plan, snapshot.code_bundle, {
           track,
+          theme,
           onStage: sendStage,
         });
 

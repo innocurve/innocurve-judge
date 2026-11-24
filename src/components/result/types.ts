@@ -12,10 +12,14 @@ export interface ApiCriterion {
   unstable: boolean;
 }
 
-export type JudgeTrack = "public" | "corporate";
+export type JudgeTrack = "public" | "corporate" | "theme";
 
 export interface ApiEvaluation {
   track: JudgeTrack;
+  /** 주제 맞춤일 때 채점에 쓴 주제(키워드) — v2.4 이전 기록·다른 트랙은 없거나 null */
+  theme?: string | null;
+  /** 주제 맞춤 채점 기준 버전 (judge/tracks.ts THEME_RUBRIC_VERSION) */
+  rubric_version?: number;
   track_label: string;
   strengths: string[];
   risks: string[];

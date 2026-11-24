@@ -9,7 +9,7 @@ import {
   totalScore,
 } from "@/judge/score";
 import { criterionMeta } from "@/judge/riskBuilder";
-import { trackSpec } from "@/judge/tracks";
+import { THEME_RUBRIC_VERSION, trackDisplayLabel, trackSpec } from "@/judge/tracks";
 import { INTENT_DOMAIN_LABEL, SECURITY_DOMAIN_LABEL } from "@/judge/types";
 import type { EvaluationOutput } from "./evaluator";
 
@@ -19,7 +19,10 @@ export function evaluationToResponse(output: EvaluationOutput): Record<string, u
   return {
     ...scores,
     track,
-    track_label: spec.label,
+    // 주제 맞춤이면 채점에 쓴 주제와 채점 기준 버전 — 기록을 다시 열었을 때 무엇으로 채점했는지 남긴다
+    theme: output.theme ?? null,
+    ...(track === "theme" && { rubric_version: THEME_RUBRIC_VERSION }),
+    track_label: trackDisplayLabel(track, output.theme),
     strengths: output.strengths,
     risks: output.risks,
     final_verdict: output.final_verdict,
