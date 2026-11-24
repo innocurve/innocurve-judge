@@ -136,9 +136,9 @@ describe("assessDomains", () => {
     expect(assessDomains(plan, code).domain2_ok).toBe(true);
   });
 
-  it("영문 주제어 경계: camelCase 새 단어·복수형·주석은 세고, 단어 중간은 세지 않음", () => {
+  it("영문 주제어 경계: camelCase 새 단어·복수형은 세고, 단어 중간·TODO 주석 표시는 세지 않음", () => {
     const counts = topicCounts("// TODO: fix\nconst todos = addTodo(todoList);\nrenews(); newsFeed(); uploadedFiles; reupload();");
-    expect(counts.get("todo")).toBe(4); // TODO, todos, addTodo(Todo), todoList
+    expect(counts.get("todo")).toBe(3); // todos, addTodo(Todo), todoList — 주석의 TODO 는 개발자 메모 표시라 뺀다
     expect(counts.get("news")).toBe(1); // newsFeed 만 — renews 는 단어 중간
     expect(counts.get("upload")).toBe(1); // uploadedFiles 만 — reupload 는 단어 중간
   });
@@ -158,6 +158,21 @@ describe("assessDomains", () => {
     expect(assessDomains(plan, code).domain2_ok).toBe(true);
     // 진짜 그래프 코드는 그대로 센다
     expect(topicCounts("<BarChart /> <LineChart /> renderChart(chartData)").get("chart")).toBe(4);
+  });
+
+  it("코드 주석의 TODO 표시는 할 일 주제로 세지 않아 주제 불일치로 0점 처리하지 않음 (한남대 운동 자세 앱)", () => {
+    // 실제 사례: 기획서는 "자세 사진 업로드"를 3번, 코드(함께 올린 MediaPipe 연결 코드)는 // TODO(sbc): … 를 10번 —
+    // "할 일 관리"가 코드 주제로 떠서 의도 구현도가 0점이 됐다
+    const plan =
+      "# 세이프핏 기획서\n\n## 핵심 기능\n1. 운동 종목 선택\n2. 자세 사진 업로드\n3. AI가 자세를 분석해 안전 피드백\n\n" +
+      "## 예외\n- 얼굴이 나오지 않게 찍도록 업로드 화면에 안내\n- 사진 업로드 형식·크기 검사\n" +
+      "## 성공 기준\n사용자가 자세 피드백과 주의사항을 확인할 수 있다.\n";
+    const code = Array.from({ length: 10 }, (_, i) => `// TODO(sbc): cleanup ${i}\nvar x${i} = Module["asm"];`).join("\n") +
+      "\nexport function analyzePose(image) {\n  return detect(image);\n}\n";
+    expect(topicCounts(code).get("todo")).toBeUndefined();
+    expect(assessDomains(plan, code).domain2_ok).toBe(true);
+    // 할 일 앱 코드는 그대로 센다
+    expect(topicCounts("const todos = []; addTodo(t); renderTodoList(todos);").get("todo")).toBe(4); // todos·Todo·Todo·todos
   });
 
   it("공공 API 숫자 ID가 있어도 코드 정상 인식", () => {
