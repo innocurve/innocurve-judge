@@ -1,6 +1,6 @@
 // Design Ref: §2.2 — 채점 오케스트레이터: 검증 → 앙상블 병렬 호출 → 집계 → 후기
 // Plan SC: 앙상블 N회 병렬 호출로 재현성 확보 (FR-05, FR-06), 폴백 이중화 (FR-08)
-// 트랙(기관용/기업용)은 분야1에만 영향을 준다 — 분야2·집계·후기 경로는 공통.
+// 트랙(기관용/기업용/주제 맞춤)은 분야1에만 영향을 준다 — 분야2·집계·후기 경로는 공통.
 import {
   aggregateCriteria,
   representativeSampleIndex,
@@ -9,6 +9,7 @@ import {
   corporateScoresSchema,
   intentScoresSchema,
   publicSectorScoresSchema,
+  themeScoresSchema,
   reviewSummarySchema,
   securityScoresSchema,
 } from "@/judge/schemas";
@@ -39,7 +40,7 @@ import {
 import { assessDomains } from "@/judge/inputValidator";
 import { getConfig } from "./config";
 import { createClient, parseStructured, type FallbackState } from "./openai";
-import { loadPrompt } from "./prompts";
+import { domain1ThemePrompt, loadPrompt } from "./prompts";
 
 const MAX_FINAL_VERDICT_CHARS = 450;
 
@@ -50,6 +51,8 @@ export type EvaluationStage = "validating" | "scoring" | "aggregating" | "review
 
 export interface EvaluationOutput {
   track: JudgeTrack;
+  /** 주제 맞춤일 때 채점에 쓴 주제(키워드). 다른 트랙은 null */
+  theme: string | null;
   scores: ScoreMap;
   criteria: CriterionResult[];
   strengths: string[];
@@ -78,12 +81,14 @@ function trackKeys(track: JudgeTrack): CriterionKey[] {
 
 function buildZeroOutput(
   track: JudgeTrack,
+  theme: string | null,
   assessment: DomainAssessment,
   ensemble: EnsembleMeta,
 ): EvaluationOutput {
   const issues = [...new Set(assessment.fatal_reasons)].slice(0, 5);
   return {
     track,
+    theme,
     scores: { ...ZERO_SCORES },
     criteria: zeroCriteria(trackKeys(track)),
     strengths: ["제출된 자료만으로는 심사할 수 있는 내용이 확인되지 않았습니다."],
@@ -196,10 +201,18 @@ async function scoreDomainEnsemble<K extends CriterionKey>(
 export async function runEvaluation(
   planText: string,
   codeText: string,
-  options?: { track?: JudgeTrack; onStage?: (stage: EvaluationStage) => void },
+  options?: {
+    track?: JudgeTrack;
+    /** 주제 맞춤(track=theme)일 때 주제(키워드). 없으면 심사하지 않는다 */
+    theme?: string | null;
+    onStage?: (stage: EvaluationStage) => void;
+  },
 ): Promise<EvaluationOutput> {
   const track = options?.track ?? "public";
   const spec = trackSpec(track);
+  // 주제 맞춤은 주제가 있어야 채점할 수 있다 — 모델을 부르기 전에 막는다 (비용이 나가기 전에)
+  const theme = track === "theme" ? (options?.theme?.trim() || null) : null;
+  const domain1System = track === "theme" ? domain1ThemePrompt(theme ?? "") : loadPrompt(spec.domain1Prompt);
   const onStage = options?.onStage ?? (() => {});
   const config = getConfig();
   const emptyEnsemble: EnsembleMeta = {
@@ -220,7 +233,7 @@ export async function runEvaluation(
   onStage("validating");
   const assessment = assessDomains(planText, codeText);
   if (assessment.all_fatal) {
-    return buildZeroOutput(track, assessment, emptyEnsemble);
+    return buildZeroOutput(track, theme, assessment, emptyEnsemble);
   }
 
   const client = createClient();
@@ -230,9 +243,9 @@ export async function runEvaluation(
   const code = codeText.trim();
 
   const domain1Schema =
-    track === "corporate" ? corporateScoresSchema : publicSectorScoresSchema;
+    track === "corporate" ? corporateScoresSchema : track === "theme" ? themeScoresSchema : publicSectorScoresSchema;
   const domain1SchemaName =
-    track === "corporate" ? "corporate_scores" : "public_sector_scores";
+    track === "corporate" ? "corporate_scores" : track === "theme" ? "theme_scores" : "public_sector_scores";
 
   onStage("scoring");
   const [domain1Criteria, intentCriteria, securityCriteria] = await Promise.all([
@@ -242,7 +255,7 @@ export async function runEvaluation(
         eligible: assessment.domain1_ok,
         call: () =>
           parseStructured(client, models, {
-            system: loadPrompt(spec.domain1Prompt),
+            system: domain1System,
             user: `## 기획서\n${plan}`,
             schema: domain1Schema,
             schemaName: domain1SchemaName,
@@ -292,7 +305,7 @@ export async function runEvaluation(
 
   onStage("reviewing");
   const scoresSnapshot = {
-    심사_트랙: spec.label,
+    심사_트랙: theme ? `${spec.label}(주제: ${theme})` : spec.label,
     [spec.domain1Label]: Object.fromEntries(domain1Criteria.map((c) => [c.key, c.score])),
     [INTENT_DOMAIN_LABEL]: Object.fromEntries(intentCriteria.map((c) => [c.key, c.score])),
     [SECURITY_DOMAIN_LABEL]: Object.fromEntries(securityCriteria.map((c) => [c.key, c.score])),
@@ -313,7 +326,9 @@ export async function runEvaluation(
       system: loadPrompt("review_summary.txt"),
       user:
         `## 심사 트랙\n${spec.label} — ${spec.description}\n` +
-        `분야1은 "${spec.domain1Label}"입니다.\n\n` +
+        `분야1은 "${spec.domain1Label}"입니다.\n` +
+        (theme ? `과정 주제는 "${theme}"입니다. 제1분야 사유·잘한 점은 이 주제를 기준으로 쓰세요.\n` : "") +
+        "\n" +
         `## 기획서\n${plan}\n\n## 실행 코드\n${code}\n\n` +
         `## 산출 점수\n${JSON.stringify(scoresSnapshot, null, 2)}\n\n` +
         `## 감점 후보\n${candidatesForPrompt(riskCandidates)}\n\n` +
@@ -347,6 +362,7 @@ export async function runEvaluation(
 
   return {
     track,
+    theme,
     scores,
     criteria,
     strengths,

@@ -85,14 +85,15 @@ export default function CriteriaPage() {
           트랙별 3개 분야 · 9개 항목
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-soft">
-          심사는 기관용·기업용 두 트랙으로 나뉩니다. 제1분야는 트랙마다 기준이 다르고,
-          제2분야(의도 구현도)와 제3분야(보안 적합성)는 두 트랙 공통입니다. 모든 항목은
+          심사는 기관용·기업용·주제 맞춤 세 트랙으로 나뉩니다. 제1분야는 트랙마다 기준이 다르고,
+          제2분야(의도 구현도)와 제3분야(보안 적합성)는 모든 트랙 공통입니다. 주제 맞춤은
+          접수 때 입력한 주제(키워드)를 기준으로 제1분야를 채점합니다. 모든 항목은
           0~100점으로 채점하며, 분야 점수는 세부 3개 항목의 평균, 종합 점수는 3개 분야의
           평균입니다. 70점 미만
           항목은 감점 요인으로 기록되며, 최대 5개까지 표시됩니다.
         </p>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-seal">
-          두 트랙은 채점 기준이 다르므로 점수를 서로 비교할 수 없습니다.
+          트랙마다 채점 기준이 다르므로 점수를 서로 비교할 수 없습니다. 주제 맞춤은 주제가 다르면 비교할 수 없습니다.
         </p>
       </header>
 
@@ -119,9 +120,9 @@ export default function CriteriaPage() {
         ))}
       </section>
 
-      {/* 제2·3분야는 두 트랙 공통 — 한 번만 표시 */}
+      {/* 제2·3분야는 모든 트랙 공통 — 한 번만 표시 */}
       <section className="flex flex-col gap-4">
-        <h2 className="font-display text-2xl font-black">제2분야 — 두 트랙 공통</h2>
+        <h2 className="font-display text-2xl font-black">제2분야 — 모든 트랙 공통</h2>
         <DomainSection
           no="제2분야"
           title={INTENT_DOMAIN_LABEL}
@@ -132,7 +133,7 @@ export default function CriteriaPage() {
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="font-display text-2xl font-black">제3분야 — 두 트랙 공통</h2>
+        <h2 className="font-display text-2xl font-black">제3분야 — 모든 트랙 공통</h2>
         <DomainSection
           no="제3분야"
           title={SECURITY_DOMAIN_LABEL}

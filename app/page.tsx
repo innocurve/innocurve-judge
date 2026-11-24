@@ -44,9 +44,11 @@ export default function HomePage() {
           아홉 항목을 세 번씩 채점합니다.
         </h1>
         <p className="mt-5 max-w-xl text-base leading-relaxed text-ink-soft">
-          심사는 <strong className="font-bold text-ink">기관용</strong>과{" "}
-          <strong className="font-bold text-ink">기업용</strong> 두 트랙으로 나뉘며,
-          접수 시 선택합니다. 공개 GitHub 레포 주소만 제출하면 AI 심사위원이 레포에서
+          심사는 <strong className="font-bold text-ink">기관용</strong>·{" "}
+          <strong className="font-bold text-ink">기업용</strong>·{" "}
+          <strong className="font-bold text-ink">주제 맞춤</strong> 세 트랙으로 나뉘며,
+          접수 시 선택합니다. 주제 맞춤은 학교·교육기관 과정처럼 주제(예: 스포츠테크)를 정해
+          심사합니다. 공개 GitHub 레포 주소만 제출하면 AI 심사위원이 레포에서
           기획 문서(PRD.md·PLAN.md)와 코드를 수집해 3개 분야 9개 항목을 채점하고, 심사 결과서를
           발급합니다. 같은 제출물의 점수가 크게 흔들리지 않도록 항목마다 여러 번
           채점해 중앙값을 기록합니다.
